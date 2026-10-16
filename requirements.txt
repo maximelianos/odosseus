@@ -1,0 +1,11 @@
+# Python >= 3.10
+# Reading the ROS 2 .mcap bag (zstd/lz4 chunk decompression + CDR decoding)
+mcap>=1.2
+mcap-ros2-support>=0.5
+zstandard>=0.22
+lz4>=4.3
+
+# Numerics + image decoding
+numpy>=1.24
+opencv-python>=4.8
+pillow>=10.0  # tools/make_gifs.py
