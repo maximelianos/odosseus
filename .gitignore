@@ -234,3 +234,8 @@ outputs/
 # D-024 sanity check: third-party screenshots and their match pictures (never commit)
 localization/external_frames/
 localization/results/external/
+
+# hackathon material: briefs, bags, organizers' tools (licensed for the hackathon, not redistributed)
+hackFiles/
+# experiment scripts of iteration 2 (E-1..E-6), kept local
+localization/scripts/exp*
