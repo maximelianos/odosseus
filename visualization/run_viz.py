@@ -3,11 +3,11 @@
 estimate, live lateral and heading errors, camera fixes and running metrics, as a window paced at the
 10 Hz image-set rate and/or an mp4 at 10 fps.
 
-    python visualization/run_viz.py night                  # L7, first 30 s from the gate, fold-2 run -> mp4
-    python visualization/run_viz.py night --live           # also play it in a window at 10 Hz
-    python visualization/run_viz.py night --lap L2 --t0 40 --t1 70
-    python visualization/run_viz.py day --live             # daytime lap, first 30 s: the pipeline live -> window + mp4
-    python visualization/run_viz.py day --calib bag        # query with the day bag's own rr/rl extrinsics
+    python visualization/run_viz.py mapped                  # L7, first 30 s from the gate, fold-2 run -> mp4
+    python visualization/run_viz.py mapped --live           # also play it in a window at 10 Hz
+    python visualization/run_viz.py mapped --lap L2 --t0 40 --t1 70
+    python visualization/run_viz.py test --live             # daytime lap, first 30 s: the pipeline live -> window + mp4
+    python visualization/run_viz.py test --calib bag        # query with the day bag's own rr/rl extrinsics
 
 Ground truth is used only for the errors, the metrics and the drawn true path, never as an input of
 the pipeline. The daytime bag has none: its view shows health signals. Outputs go to
@@ -45,7 +45,7 @@ def figure(interactive):
 def with_ground_truth(d):
     rm = RunningMetrics(ref.ground_truth(), d['stamp_ns'], d['x'], d['y'], d['yaw'], d['proc_ms'], d['n_acc'])
     d.update(t=(d['stamp_ns'] - d['stamp_ns'][0]) / 1e9, gt_x=rm.e['gt_x'], gt_y=rm.e['gt_y'], gt_yaw=rm.gt_yaw,
-             lat=rm.e['lat'], lon=rm.e['lon'], dyaw_deg=rm.e['dyaw_deg'], ok=rm.ok,
+             lat=rm.e['lat'], lon=rm.e['lon'], pos=rm.e['pos'], dyaw_deg=rm.e['dyaw_deg'], ok=rm.ok,
              running=[rm.at(k) for k in range(len(d['stamp_ns']))])
     return rm
 
@@ -57,7 +57,7 @@ def write_poses(d, path):
             f.write(f'{int(t)},{x:.4f},{y:.4f},{a:.6f}\n')
 
 
-def night(args):
+def mapped(args):
     from dashboard import TruthDashboard as Dashboard
     import player
     t = time.time()
@@ -65,7 +65,7 @@ def night(args):
     rm = with_ground_truth(d)
     d['bounds'], d['ref_xy'] = ref.track_bounds(), (rm.gt['x'], rm.gt['y'])
     chunk = rm.final()                                   # = camloc.metrics.score; asserts the running values agree
-    name = args.name or f'night_{args.lap}_{args.t0:g}-{args.t1:g}s'
+    name = args.name or f'mapped_{args.lap}_{args.t0:g}-{args.t1:g}s'
     out = os.path.join(OUT, name)
     os.makedirs(out, exist_ok=True)
 
@@ -94,14 +94,13 @@ def night(args):
     print(f'whole lap {args.lap}: pos {whole["pos_rmse_m"]:.3f} m, lateral {whole["lat_rmse_m"]:.3f} m, '
           f'heading {whole["yaw_rmse_deg"]:.3f} deg (data prepared in {time.time() - t:.0f} s)')
 
-    title = (f'Night validation lap {args.lap}: {args.t1 - args.t0:g} s from '
+    title = (f'Mapped mode · validation lap {args.lap}: {args.t1 - args.t0:g} s from '
              + ('the start/finish line' if args.t0 == 0 else f'{args.t0:g} s into the lap'))
-    subtitle = ('Continuous run of fold 2, this lap not in the map  ·  iteration 1, 5 cameras  ·  '
-                'replayed at the 10 Hz image-set rate')
+    subtitle = None                                    # no second header line in mapped mode (title only)
     if not args.no_mp4:
         dash = Dashboard(d, figure(False), title, subtitle)
         summary['mp4'] = player.mp4(dash, os.path.join(out, f'{name}.mp4'))
-        dash.fig.savefig(os.path.join(out, 'final_frame.png'), facecolor=dash.fig.get_facecolor())
+        dash.save_images(out)
         print(f'mp4: {summary["mp4"]["frames"]} frames in {summary["mp4"]["render_s"]:.0f} s -> {out}/{name}.mp4')
     if args.live:
         dash = Dashboard(d, figure(True), title, subtitle)
@@ -111,7 +110,7 @@ def night(args):
         json.dump(summary, f, indent=1)
 
 
-def day(args):
+def test(args):
     """The daytime lap: camloc's pipeline.run (unchanged, configs/final.yaml) in a worker process at the
     10 Hz image-set rate, drawn as frames arrive; afterwards the mp4 of every frame."""
     import multiprocessing as mp
@@ -121,7 +120,7 @@ def day(args):
     from camloc import config
     from dashboard import HealthDashboard
     if args.from_log:
-        return day_render(args, **_load(args.from_log))
+        return test_render(args, **_load(args.from_log))
     t = time.time()
     cfg_path = os.path.join(ref.LOC, 'configs', 'final.yaml')
     cams = config.load(cfg_path)['reloc']['cameras']
@@ -143,7 +142,7 @@ def day(args):
     q = ctx.Queue()
     proc = ctx.Process(target=live_day.worker, args=(q, params), daemon=True)
     proc.start()
-    title = f'Daytime lap: {chunk:g} s from ' + ('the start/finish line' if args.t0 == 0 else f'{args.t0:g} s into the lap')
+    title = test_title(args.t0, args.t1)
     subtitle = ('No ground truth in this bag: health signals only  ·  map of all 9 night laps, iteration 1, 5 cameras  ·  '
                 f'{args.calib} calibration  ·  pipeline at the 10 Hz image-set rate')
     dash = None
@@ -190,7 +189,7 @@ def day(args):
 
     d = log.trimmed(done['proc_ms'])                    # runtime as measured by pipeline.run itself
     h = d['health'][-1]
-    name = args.name or f'day_{args.t0:g}-{args.t1:g}s' + ('_bagcalib' if args.calib == 'bag' else '')
+    name = args.name or f'test_{args.t0:g}-{args.t1:g}s' + ('_bagcalib' if args.calib == 'bag' else '')
     out = os.path.join(OUT, name)
     os.makedirs(out, exist_ok=True)
     write_poses(d, os.path.join(out, 'poses.csv'))
@@ -212,11 +211,15 @@ def day(args):
           f'pipeline late by at most {summary["pipeline_late_ms_max"]:.0f} ms')
     print('per camera:', json.dumps(done['per_camera']))
     import pickle
-    with open(os.path.join(out, 'log.pkl'), 'wb') as f:      # re-render without the pipeline: day --from-log
+    with open(os.path.join(out, 'log.pkl'), 'wb') as f:      # re-render without the pipeline: test --from-log
         pickle.dump({'d': d, 'title': title, 'subtitle': subtitle, 'summary': summary, 'name': name}, f)
     if dash is not None:
         dash.render(len(d['t']) - 1, final=True, show=True)
-    day_render(args, d, title, subtitle, summary, name, out=out, live_dash=dash)
+    test_render(args, d, title, subtitle, summary, name, out=out, live_dash=dash)
+
+
+def test_title(t0, t1):
+    return f'Test mode · daytime lap: {t1 - t0:g} s from ' + ('the start/finish line' if t0 == 0 else f'{t0:g} s into the lap')
 
 
 def _load(path):
@@ -224,18 +227,58 @@ def _load(path):
     with open(path, 'rb') as f:
         saved = pickle.load(f)
     saved['out'] = os.path.dirname(os.path.abspath(path))
+    saved['title'] = test_title(*saved['summary']['chunk_s'])        # current naming, also for older recordings
     return saved
 
 
-def day_render(args, d, title, subtitle, summary, name, out, live_dash=None):
+def offset_after(d, out, t_from):
+    """Offset from the racing line from t_from s on (after the stand-in start has locked on): RMS, mean, max,
+    printed, and plotted as plots/racing_line_offset_after_<t_from>s.png."""
+    from dashboard import EST, INK, INK2, MUTED, AXIS, GRID, PAGE, SURFACE
+    import matplotlib.pyplot as plt
+    m = d['t'] >= t_from
+    t, off, sig = d['t'][m], d['ref_off'][m], d['sigma_xy'][m] / np.sqrt(2)
+    r = {'from_s': t_from, 'frames': int(m.sum()), 'rms_m': float(np.sqrt(np.mean(off ** 2))),
+         'mean_m': float(off.mean()), 'abs_max_m': float(np.abs(off).max()),
+         'abs_p95_m': float(np.percentile(np.abs(off), 95)), 'within_0.5_m_pct': 100.0 * float(np.mean(np.abs(off) < 0.5))}
+    print(f'offset from the racing line from {t_from:g} s ({r["frames"]} frames): RMS {r["rms_m"]:.3f} m, '
+          f'mean {r["mean_m"]:+.3f} m, |p95| {r["abs_p95_m"]:.3f} m, |max| {r["abs_max_m"]:.3f} m, '
+          f'within 0.5 m {r["within_0.5_m_pct"]:.1f} %')
+    fig, ax = plt.subplots(figsize=(12, 3.6), dpi=120, facecolor=PAGE)
+    ax.set_facecolor(SURFACE)
+    for sp in ('top', 'right'):
+        ax.spines[sp].set_visible(False)
+    ax.grid(True, color=GRID, lw=0.6)
+    ax.axhline(0, color=MUTED, lw=1.0)
+    ax.fill_between(t, off - sig, off + sig, color=EST, alpha=0.10, lw=0, label='filter ±1σ (per axis)')
+    ax.plot(t, off, color=EST, lw=2.0, label='estimate')
+    ax.set_xlim(t_from, t[-1] + 0.1)
+    lim = max(0.5, float(np.ceil(1.1 * np.abs(np.r_[off - sig, off + sig]).max() * 10) / 10))
+    ax.set_ylim(-lim, lim)
+    ax.set_xlabel('time in chunk [s]', color=INK2)
+    ax.set_ylabel('offset [m], + = left', color=INK2)
+    ax.set_title(f'Offset from the racing line after {t_from:g} s: RMS {r["rms_m"]:.3f} m, mean {r["mean_m"]:+.3f} m, '
+                 f'|max| {r["abs_max_m"]:.2f} m', loc='left', color=INK, fontsize=11)
+    ax.text(1.0, 1.01, "context, not an error: n of the organizers' track frame", transform=ax.transAxes,
+            ha='right', va='bottom', color=MUTED, fontsize=8.5)
+    ax.legend(loc='upper right', frameon=False, fontsize=8.5)
+    os.makedirs(os.path.join(out, 'plots'), exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out, 'plots', f'racing_line_offset_after_{t_from:g}s.png'), facecolor=PAGE)
+    plt.close(fig)
+    return r
+
+
+def test_render(args, d, title, subtitle, summary, name, out, live_dash=None):
     """mp4 + final frame + metrics.json of a recorded day run; with --from-log --live, replay it at 10 Hz."""
     import player
     from dashboard import HealthDashboard
     if not args.no_mp4:
         dash = HealthDashboard(d, figure(False), title, subtitle)
         summary['mp4'] = player.mp4(dash, os.path.join(out, f'{name}.mp4'))
-        dash.fig.savefig(os.path.join(out, 'final_frame.png'), facecolor=dash.fig.get_facecolor())
+        dash.save_images(out)
         print(f'mp4: {summary["mp4"]["frames"]} frames in {summary["mp4"]["render_s"]:.0f} s -> {out}/{name}.mp4')
+    summary['offset_after'] = offset_after(d, out, args.offset_from)
     with open(os.path.join(out, 'metrics.json'), 'w') as f:
         json.dump(summary, f, indent=1, default=float)
     if args.live and live_dash is None:                       # replay of a recorded run
@@ -249,19 +292,21 @@ def day_render(args, d, title, subtitle, summary, name, out, live_dash=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest='source', required=True)
-    n = sp.add_parser('night', help='replay a continuous run of the training bag, with ground truth')
+    n = sp.add_parser('mapped', help='replay a continuous run of the mapped (night training) bag, with ground truth')
     n.add_argument('--run', default=F2_RUN, help='scripts/run.py output CSV (its _diag.npz next to it)')
     n.add_argument('--lap', default='L7')
     n.add_argument('--t0', type=float, default=0.0, help='chunk start, s after the lap start')
     n.add_argument('--t1', type=float, default=30.0, help='chunk end, s after the lap start')
     n.add_argument('--no-thumbs', action='store_true', help='no camera thumbnail (skips reading images)')
-    dy = sp.add_parser('day', help='run the pipeline on the daytime sample (no ground truth)')
+    dy = sp.add_parser('test', help='run the pipeline on the test-format daytime sample (no ground truth)')
     dy.add_argument('--t0', type=float, default=0.0, help='chunk start, s after the first image')
     dy.add_argument('--t1', type=float, default=30.0, help='chunk end, s after the first image')
     dy.add_argument('--calib', choices=('training', 'bag'), default='training',
                     help='rr/rl extrinsics used at query time: the training calibration (what the submission does) or the bag\'s own')
     dy.add_argument('--sigma0-xy', type=float, default=3.0, help='initial position sigma of the stand-in first pose, m')
     dy.add_argument('--sigma0-yaw', type=float, default=1.0, help='initial heading sigma of the stand-in first pose, deg')
+    dy.add_argument('--offset-from', type=float, default=10.0,
+                    help='s from which the racing-line offset RMS is computed and plotted (after lock-on)')
     dy.add_argument('--from-log', help="a recorded run's log.pkl: render (and with --live replay) it without the pipeline")
     for p in (n, dy):
         p.add_argument('--live', action='store_true', help='show a window at the image-set rate')
@@ -270,7 +315,7 @@ def main():
         p.add_argument('--no-mp4', action='store_true')
         p.add_argument('--name', help='output folder name under visualization/outputs/')
     args = ap.parse_args()
-    {'night': night, 'day': day}[args.source](args)
+    {'mapped': mapped, 'test': test}[args.source](args)
 
 
 if __name__ == '__main__':

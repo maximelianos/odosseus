@@ -9,17 +9,19 @@ truth is used only to score and draw, never as an input of the pipeline.
 
 ## Run modes
 
+Two modes: **mapped** replays a run of the night training bag, whose laps make up the map, with ground truth; **test** runs the pipeline on the test-format daytime sample, without ground truth. Every run also saves its final frame (`final_frame.png`) and each panel of it as an image in `plots/` (track, camera, chase, error_scope or camera_matching, lateral_error / heading_error or racing_line_offset / filter_sigma, fixes, metrics).
+
 All commands run from the repository root. Outputs go to `visualization/outputs/<name>/`, which is
 gitignored.
 
 | mode | command | what runs | wall time | writes |
 |---|---|---|---|---|
-| **night, video** | `python visualization/run_viz.py night` | replay of a stored continuous run, with ground truth | ~15 s | `<name>.mp4`, `final_frame.png`, `metrics.json`, `chunk_poses.csv`, `chunk_gt.csv`, `official_evaluate_chunk.txt` |
-| night, window | `... night --live` | the same, played at 10 Hz in a window, then the video | 30 s + 15 s | the same |
-| **day, video** | `python visualization/run_viz.py day` | `pipeline.run` on the daytime bag as fast as it goes, then the video | ~30 s + 35 s | `day_<t0>-<t1>s.mp4`, `final_frame.png`, `metrics.json`, `poses.csv`, `log.pkl` |
-| **day, window** | `... day --live` | `pipeline.run` paced at 10 Hz in a worker process, drawn as frames arrive, then the video | 30 s + 35 s | the same |
-| day, re-render | `... day --from-log visualization/outputs/day_0-30s/log.pkl` | the video again from a recorded run, without the pipeline | ~15 s | `<name>.mp4`, `final_frame.png`, `metrics.json` |
-| day, replay | `... day --from-log <log.pkl> --live` | a recorded run replayed at 10 Hz in a window | 30 s | the same |
+| **mapped, video** | `python visualization/run_viz.py mapped` | replay of a stored continuous run, with ground truth | ~15 s | `<name>.mp4`, `final_frame.png`, `plots/*.png`, `metrics.json`, `chunk_poses.csv`, `chunk_gt.csv`, `official_evaluate_chunk.txt` |
+| mapped, window | `... mapped --live` | the same, played at 10 Hz in a window, then the video | 30 s + 15 s | the same |
+| **test, video** | `python visualization/run_viz.py test` | `pipeline.run` on the daytime bag as fast as it goes, then the video | ~30 s + 35 s | `test_<t0>-<t1>s.mp4`, `final_frame.png`, `plots/*.png`, `metrics.json`, `poses.csv`, `log.pkl` |
+| **test, window** | `... test --live` | `pipeline.run` paced at 10 Hz in a worker process, drawn as frames arrive, then the video | 30 s + 35 s | the same |
+| test, re-render | `... test --from-log visualization/outputs/test_0-30s/log.pkl` | the video again from a recorded run, without the pipeline | ~15 s | `<name>.mp4`, `final_frame.png`, `plots/*.png`, `metrics.json` |
+| test, replay | `... test --from-log <log.pkl> --live` | a recorded run replayed at 10 Hz in a window | 30 s | the same |
 | **smoke test** | `conda run -n odosseus-sp python visualization/smoke_matching.py` | day vs night frame matching: SuperPoint + LightGlue next to SIFT | ~90 s | `outputs/smoke_matching/pairs.csv`, `summary.json`, match pictures |
 
 Options:
@@ -32,11 +34,12 @@ Options:
 | `--t0`, `--t1` | day | `0`, `30` | chunk = first image of the bag + [t0, t1) s |
 | `--calib training\|bag` | day | `training` | rr / rl extrinsics used at query time. `training` is what the submission does; `bag` uses the day bag's own (rr +2.2° roll / −1.1° pitch, rl +0.5° / +0.3°) |
 | `--sigma0-xy`, `--sigma0-yaw` | day | `3.0` m, `1.0` ° | initial uncertainty of the stand-in first pose |
+| `--offset-from` | test | `10` | the offset from the racing line from this time on: RMS, mean, p95, max in `metrics.json` (`offset_after`) and the plot `plots/racing_line_offset_after_<s>s.png` |
 | `--from-log` | day | | render or replay a recorded run (`log.pkl`) instead of running the pipeline |
 | `--live`, `--speed`, `--no-hold` | all | real time | window; playback speed factor; close the window at the end instead of keeping it open |
 | `--no-mp4`, `--name` | all | | skip the video; output folder name |
 
-The defaults reproduce the two published runs: `outputs/night_L7_0-30s/` and `outputs/day_0-30s/`.
+The defaults reproduce the two published runs: `outputs/mapped_L7_0-30s/` and `outputs/test_0-30s/`.
 
 ## Requirements
 
@@ -56,7 +59,7 @@ The defaults reproduce the two published runs: `outputs/night_L7_0-30s/` and `ou
 
 ## What the views show
 
-**Night (`TruthDashboard`): training bag, with ground truth.** It replays a continuous run of the whole bag from
+**Mapped mode (`TruthDashboard`): the night training bag, with ground truth.** It replays a continuous run of the whole bag from
 its first pose (localization D-004); the chosen lap is not in that run's map (fold 2: L2, L7 held out).
 
 - **Track view:** borders (grey), the chunk's true path (faint grey), the truth so far (thin black) and the
@@ -75,7 +78,7 @@ its first pose (localization D-004); the chosen lap is not in that run's map (fo
 - **Running metrics:** the official metrics over the frames so far. At the end they are checked against
   `camloc.metrics.score` and `tools/evaluate.py` on the chunk.
 
-**Day (`HealthDashboard`): daytime sample, no ground truth, so no errors.**
+**Test mode (`HealthDashboard`): the test-format daytime sample, no ground truth, so no errors.**
 
 - **Track and chase views:** the organizers' **racing line** (faint grey; update `map.mcap`) and the estimate
   (blue). In the track view the blue gets darker with the filter's σ, saturating at 3 m. The chase view is
@@ -84,7 +87,7 @@ its first pose (localization D-004); the chosen lap is not in that run's map (fo
   (the panel says so) (`reloc.query.min_matches`), then ≥ 15 PnP inliers, an inlier ratio ≥ 0.2, height / roll / pitch
   checks (D-013) and the filter's χ² gate (D-014). Bar colour: grey no fix, aqua accepted, orange rejected at the gate.
 - **Offset from the racing line:** the organizers' track-frame `n` (`track_frame.Line.xy_to_sn`), + = left of the
-  line. This is context, not an error: the car need not drive exactly on the line.
+  line. Always shown at ±5 m (values beyond run off the panel). This is context, not an error: the car need not drive exactly on the line.
 - **Filter position σ:** how sure the filter is; it grows while no fix is accepted. The y range follows the last
   6 s; the final frame shows the whole chunk.
 - **Health metrics:** fix rate, fixes accepted / produced / tried, median matches, σ, track-constraint share,

@@ -36,8 +36,7 @@ RAMP = LinearSegmentedColormap.from_list('blue_seq', ['#86b6ef', '#3987e5', '#1c
 # schematic car footprint in base_link (x forward, y left), metres
 CAR = np.array([[-1.0, -0.95], [3.2, -0.95], [4.0, 0.0], [3.2, 0.95], [-1.0, 0.95]])
 CHASE_X, CHASE_Y = (-22, 22), (-14, 30)     # chase view window, m (x right, y ahead)
-CHASE_TRAIL_S = 5.0             # s of estimate trail in the chase view
-SCOPE_TRAIL = 30                # frames of history in the error scope
+OFFSET_LIM_M = 5.0              # test mode: offset from the racing line always shown at +-5 m
 
 mpl.rcParams.update({
     'font.family': ['Arial', 'Helvetica', 'DejaVu Sans'], 'font.size': 9,
@@ -126,14 +125,18 @@ class Dashboard:
         self.dynamic, self.bg, self.limits = [], None, {}
         fig.set_facecolor(PAGE)
         fig.text(0.01, 0.968, title, fontsize=15, color=INK, va='center')
-        fig.text(0.01, 0.937, subtitle, fontsize=10, color=INK2, va='center')
+        if subtitle:                                   # mapped mode passes none (only the title on the left)
+            fig.text(0.01, 0.937, subtitle, fontsize=10, color=INK2, va='center')
         self.clock = self._dyn(fig.text(0.99, 0.968, '', fontsize=13, color=INK, ha='right', va='center'))
         self.clock2 = self._dyn(fig.text(0.99, 0.937, '', fontsize=10, color=INK2, ha='right', va='center'))
-        self._overview(fig.add_axes([0.01, 0.04, 0.31, 0.86]))
-        self._thumb(fig.add_axes([0.335, 0.73, 0.205, 0.176]))
-        self._chase(fig.add_axes([0.35, 0.43, 0.175, 0.27]))
-        self._middle(fig.add_axes([0.35, 0.075, 0.175, 0.28]))
-        self._metrics(fig.add_axes([0.575, 0.68, 0.41, 0.23]))
+        self.panels = {'track': fig.add_axes([0.01, 0.04, 0.31, 0.86]), 'camera': fig.add_axes([0.335, 0.73, 0.205, 0.176]),
+                       'chase': fig.add_axes([0.35, 0.43, 0.175, 0.27]), 'middle': fig.add_axes([0.35, 0.075, 0.175, 0.28]),
+                       'metrics': fig.add_axes([0.575, 0.68, 0.41, 0.23])}
+        self._overview(self.panels['track'])
+        self._thumb(self.panels['camera'])
+        self._chase(self.panels['chase'])
+        self._middle(self.panels['middle'])
+        self._metrics(self.panels['metrics'])
         self.ax_s1 = fig.add_axes([0.575, 0.45, 0.41, 0.175])
         self.ax_s2 = fig.add_axes([0.575, 0.255, 0.41, 0.135], sharex=self.ax_s1)
         self.ax_fix = fig.add_axes([0.575, 0.06, 0.41, 0.13], sharex=self.ax_s1)
@@ -146,6 +149,7 @@ class Dashboard:
         self._series1(self.ax_s1)
         self._series2(self.ax_s2)
         self._fixes(self.ax_fix)
+        self.panels.update(series1=self.ax_s1, series2=self.ax_s2, fixes=self.ax_fix)
         canvas = fig.canvas
         self.blit = bool(getattr(canvas, 'supports_blit', False))
         if self.blit:
@@ -269,7 +273,7 @@ class Dashboard:
         txt.set_ha('left' if right else 'right')
         txt.set_text(text)
 
-    def _update_line(self, key, p, t, v, lo, hi, text, steps, symmetric=True, window=None):
+    def _update_line(self, key, p, t, v, lo, hi, text, steps, symmetric=True, window=None, fixed=None):
         """window: frames the y range is fitted to (None = all), so that detail after a large early value
         stays visible; older values may then run off the panel."""
         p['line'].set_data(t, v)
@@ -277,6 +281,8 @@ class Dashboard:
             p['band'].set_xy(np.c_[np.r_[t, t[::-1]], np.r_[hi, lo[::-1]]])
         p['dot'].set_offsets([[t[-1], v[-1]]])
         self._end_label(p['lbl'], t[-1], v[-1], text)
+        if fixed is not None:                             # a fixed range: +-fixed (symmetric) or 0..fixed
+            return self._set_limit(key, lambda x: p['ax'].set_ylim(-x if symmetric else 0, x), fixed)
         w = slice(-window, None) if window else slice(None)
         if symmetric:
             lim = _step_limit(1.1 * max(np.abs(v[w]).max(), np.abs(hi[w]).max(), np.abs(lo[w]).max()), steps)
@@ -304,8 +310,7 @@ class Dashboard:
         for line, p in zip(self.ch_bounds, d['bounds'].values()):
             line.set_data(*_in_view(*_to_screen(p[:, 0], p[:, 1], cx, cy, cyaw)))
         self.ch_ref.set_data(*_in_view(*_to_screen(np.asarray(d['ref_xy'][0]), np.asarray(d['ref_xy'][1]), cx, cy, cyaw)))
-        tr = slice(max(0, k - int(CHASE_TRAIL_S * 10)), k + 1)
-        self.ch_est.set_data(*_to_screen(d['x'][tr], d['y'][tr], cx, cy, cyaw))
+        self.ch_est.set_data(*_in_view(*_to_screen(d['x'][s], d['y'][s], cx, cy, cyaw)))   # whole path so far
         full = self._update_extra(k, s, t, cx, cy, cyaw)
         xa, ya = _steps(t, d['n_acc'][s])
         self.fix_acc.set_data(xa, ya)
@@ -314,6 +319,29 @@ class Dashboard:
         for txt, v in zip(self.mtext, self._metric_values(k)):
             txt.set_text(v)
         return full
+
+    def save_images(self, out, k=None):
+        """The final frame as final_frame.png, and each panel of it as plots/<panel>.png."""
+        import os
+        k = self.n - 1 if k is None else k
+        self.update(k, final=True)
+        for a in self.dynamic:                       # blitted artists are skipped by a normal draw
+            a.set_animated(False)
+        names = {'middle': self.MIDDLE_NAME, 'series1': self.SERIES_NAMES[0], 'series2': self.SERIES_NAMES[1]}
+        try:
+            self.fig.savefig(os.path.join(out, 'final_frame.png'), facecolor=self.fig.get_facecolor())
+            os.makedirs(os.path.join(out, 'plots'), exist_ok=True)
+            r = self.fig.canvas.get_renderer()
+            for key, ax in self.panels.items():
+                if not ax.get_visible():
+                    continue
+                box = ax.get_tightbbox(r).transformed(self.fig.dpi_scale_trans.inverted()).padded(0.08)
+                self.fig.savefig(os.path.join(out, 'plots', f'{names.get(key, key)}.png'), bbox_inches=box,
+                                 facecolor=self.fig.get_facecolor())
+        finally:
+            for a in self.dynamic:
+                a.set_animated(self.blit)
+            self.bg = None
 
     def render(self, k, lag=0, final=False, show=False, note=''):
         """Draw frame k: background + moving artists. show=True pushes it to a window (blit)."""
@@ -333,7 +361,28 @@ class Dashboard:
 
 
 class TruthDashboard(Dashboard):
-    """Night, with ground truth: errors across / along the true heading and the official metrics."""
+    """Mapped mode (night training bag, with ground truth): errors across / along the true heading and the
+    official metrics."""
+    MIDDLE_NAME, SERIES_NAMES = 'position_error', ('lateral_error', 'heading_error')
+
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        # layout: right column lateral, position, heading error; camera fixes under the chase view
+        mid, s2, fix = self.pm['ax'], self.ax_s2, self.ax_fix
+        rect_mid, rect_s2, rect_fix = mid.get_position(), s2.get_position(), fix.get_position()
+        mid.set_position(rect_s2)
+        mid.set_xlabel('')
+        mid.tick_params(labelbottom=False)
+        s2.set_position(rect_fix)
+        s2.tick_params(labelbottom=True)
+        s2.set_xlabel('time in chunk [s]')
+        fix.set_position(rect_mid)
+        fix.get_legend().remove()                        # narrow slot: legend on its own line under the title
+        for txt in fix.texts:
+            txt.remove()
+        fix.set_title('Camera fixes per frame (of 5)', loc='left', color=INK, fontsize=10.5, pad=17)
+        fix.legend([Line2D([], [], color=ACC, lw=2), Line2D([], [], color=REJ, lw=2)], ['accepted', 'rejected at the gate'],
+                   loc='lower left', bbox_to_anchor=(0.0, 1.0), ncol=2, borderaxespad=0.3, handlelength=1.6, columnspacing=1.0)
     METRIC_ROWS = [('Position RMSE', '25 %'), ('Lateral RMSE', '20 %'), ('Heading RMSE', '10 %'),
                    ('Within 1 m', '10 %'), ('Runtime per frame', '5 %'), ('Coverage', 'ranked ≥ 90 %'),
                    (None, None), ('Longitudinal RMSE', ''), ('Median · p95 · max', ''), ('Frames with an accepted fix', '')]
@@ -346,27 +395,19 @@ class TruthDashboard(Dashboard):
         _title(ax, 'Track, map frame', 'grey: whole chunk path')
 
     def _chase_extra(self, ax):
-        self.ch_gt = self._dyn(ax.plot([], [], color=INK, lw=1.0)[0])
+        self.ch_gt = self._dyn(ax.plot([], [], color=INK, lw=1.0)[0])      # ground truth, whole chunk, over the estimate
         ax.add_patch(Polygon(_footprint(), closed=True, fc='none', ec=INK, lw=1.3, zorder=4))
-        ax.legend([Line2D([], [], color=AXIS, lw=1), Line2D([], [], color=INK, lw=1), Line2D([], [], color=EST, lw=3)],
-                  ['borders', 'truth so far', 'estimate, last 5 s'], loc='lower right', fontsize=7.5)
+        self._dyn(ax.legend([Line2D([], [], color=INK, lw=1), Line2D([], [], color=EST, lw=3)],
+                  ['ground truth', 'predicted path'], loc='upper right', fontsize=7.5,
+                  frameon=True, facecolor=SURFACE, edgecolor='none', framealpha=0.9))   # drawn after the moving lines (blitting), so they never cross it
         self.ch_car = self._dyn(ax.add_patch(Polygon(_footprint(), closed=True, fc=to_rgba(EST, 0.12), ec=EST, lw=1.3, zorder=5)))
 
     def _middle(self, ax):
-        _style(ax, grid=False)
-        ax.set_aspect('equal')
-        self.sc_ax = ax
-        for r in (0.25, 0.5, 1.0, 2.0):
-            ax.add_patch(Circle((0, 0), r, fill=False, ec=GRID, lw=0.8))
-            ax.text(r * 0.707, r * 0.707, f'{r:g} m', color=MUTED, fontsize=7.5, ha='left', va='bottom', clip_on=True)
-        ax.axhline(0, color=GRID, lw=0.8, zorder=0)
-        ax.axvline(0, color=GRID, lw=0.8, zorder=0)
-        self.sc_trail = self._dyn(ax.scatter([], [], s=14, linewidth=0, zorder=3))
-        self.sc_dot = self._dyn(ax.scatter([], [], s=60, color=EST, edgecolor=SURFACE, linewidth=2, zorder=5))
-        ax.scatter([0], [0], marker='+', s=90, color=INK, linewidth=1.5, zorder=6)
-        ax.set_xlabel('lateral [m]   (left ←   → right)')
-        ax.set_ylabel('longitudinal [m]   (ahead ↑)')
-        _title(ax, 'Error scope', '+ = true car')
+        _style(ax)
+        ax.set_xlim(0, self.dt_end)
+        self.pm = self._line_panel(ax, band=False)
+        ax.set_xlabel('time in chunk [s]')
+        _title(ax, 'Position error [m]', 'distance from the truth')
 
     def _series1(self, ax):
         ax.axhline(0, color=AXIS, lw=0.8, zorder=1)
@@ -389,18 +430,12 @@ class TruthDashboard(Dashboard):
     def _update_extra(self, k, s, t, cx, cy, cyaw):
         d = self.d
         self.ov_gt.set_data(d['gt_x'][s], d['gt_y'][s])
-        self.ch_gt.set_data(*_to_screen(d['gt_x'][s], d['gt_y'][s], cx, cy, cyaw))
-        self.ch_ref.set_data([], [])               # no true path ahead of the car: only the truth so far
+        self.ch_ref.set_data([], [])                                           # replaced by ch_gt, drawn on top
+        self.ch_gt.set_data(*_in_view(*_to_screen(np.asarray(d['ref_xy'][0]), np.asarray(d['ref_xy'][1]), cx, cy, cyaw)))
         self.ch_car.set_xy(_footprint(d['lat'][k], d['lon'][k], np.radians(d['dyaw_deg'][k])))
-        # error scope: estimate relative to the true car (screen x = -lateral, y = longitudinal)
-        h = slice(max(0, k - SCOPE_TRAIL), k + 1)
-        ex, ey = -d['lat'][h], d['lon'][h]
-        self.sc_trail.set_offsets(np.c_[ex, ey])
-        self.sc_trail.set_facecolors([to_rgba(EST, a) for a in np.linspace(0.08, 0.45, len(ex))])
-        self.sc_dot.set_offsets([[ex[-1], ey[-1]]])
-        big = max(np.abs(d['lat'][s]).max(), np.abs(d['lon'][s]).max())
-        full = self._set_limit('scope', lambda v: (self.sc_ax.set_xlim(-v, v), self.sc_ax.set_ylim(-v, v)),
-                               _step_limit(1.15 * big, (0.6, 1.2, 2.5, 5.0, 10.0)))
+        pos = d['pos'][s]
+        full = self._update_line('mid', self.pm, t, pos, pos, pos, f'{100 * pos[-1]:.1f} cm',
+                                 (0.3, 0.6, 1.2, 2.5, 5.0, 10.0), symmetric=False)
         slat = d['sigma_xy'][s] / np.sqrt(2)
         full |= self._update_line('s1', self.p1, t, d['lat'][s], -slat, slat, f'{100 * d["lat"][k]:+.1f} cm',
                                   (0.3, 0.6, 1.2, 2.5, 5.0, 10.0, 25.0))
@@ -418,7 +453,8 @@ class TruthDashboard(Dashboard):
 
 
 class HealthDashboard(Dashboard):
-    """Day, no ground truth: where the estimate is against the organizers' racing line (context, not an
+    MIDDLE_NAME, SERIES_NAMES = 'camera_matching', ('racing_line_offset', 'filter_sigma')
+    """Test mode (daytime sample, no ground truth): where the estimate is against the organizers' racing line (context, not an
     error), how sure the filter is, what each camera matched, and the metrics that need no truth."""
     RAMP_MAX, RAMP_TICKS, RAMP_LABEL = 3.0, ['0', '1.5', '≥ 3'], 'filter position σ [m]'
     METRIC_ROWS = [('Frames with an accepted fix', ''), ('Camera fixes', 'accepted · produced · tried'),
@@ -437,8 +473,9 @@ class HealthDashboard(Dashboard):
 
     def _chase_extra(self, ax):
         ax.add_patch(Polygon(_footprint(), closed=True, fc=to_rgba(EST, 0.12), ec=EST, lw=1.3, zorder=5))
-        ax.legend([Line2D([], [], color=AXIS, lw=1), Line2D([], [], color=MUTED, lw=1), Line2D([], [], color=EST, lw=3)],
-                  ['borders', 'racing line', 'estimate, last 5 s'], loc='lower right', fontsize=7.5)
+        self._dyn(ax.legend([Line2D([], [], color=AXIS, lw=1), Line2D([], [], color=MUTED, lw=1), Line2D([], [], color=EST, lw=3)],
+                  ['borders', 'racing line', 'estimate, last 5 s'], loc='lower right', fontsize=7.5,
+                  frameon=True, facecolor=SURFACE, edgecolor='none', framealpha=0.9))   # drawn after the moving lines (blitting), so they never cross it
 
     def _middle(self, ax):
         _style(ax, grid=False)
@@ -483,7 +520,7 @@ class HealthDashboard(Dashboard):
         off = d['ref_off'][s]
         window = None if self.final else 60                   # y range: the last 6 s (whole chunk at the end)
         full = self._update_line('s1', self.p1, t, off, off - slat, off + slat, f'{off[-1]:+.2f} m',
-                                 (0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0), window=window)
+                                 (5.0,), fixed=OFFSET_LIM_M)
         sig = d['sigma_xy'][s]
         full |= self._update_line('s2', self.p2, t, sig, sig, sig, f'{sig[-1]:.2f} m', (0.5, 1.0, 2.0, 5.0, 10.0, 20.0),
                                   symmetric=False, window=window)
