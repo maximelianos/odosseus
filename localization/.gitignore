@@ -1,0 +1,4 @@
+# derived data: caches, masks, maps (rebuilt by run.sh from the training bag)
+artifacts/
+# outputs of runs (submissions, scores, plots, diagnostics): rebuilt by the commands in RUN_INSTRUCTIONS.md
+results/

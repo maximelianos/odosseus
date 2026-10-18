@@ -1,0 +1,13 @@
+# Cross-validation fold F3 (D-021): two back-to-back held-out laps: L4 is entered from a lap that is not in the map.
+# L0 and L8 (both pit passes) are in every fold's map, L5 stays the tuning lap and is in no map.
+# Method and parameters are unchanged from iter1.yaml.
+extends: iter1.yaml
+results: results/cv/f3
+
+split:
+  train: [L0, L1, L2, L6, L7, L8]
+  tune: [L5]
+  val: [L3, L4]
+
+reloc:
+  map_name: map_cv_f3

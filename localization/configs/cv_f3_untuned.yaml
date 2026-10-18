@@ -1,0 +1,20 @@
+# Fold F3 with the first-guess (untuned) values instead of the L5-tuned ones (D-015), to measure
+# what the tuning buys on the validation laps (D-023). Same map as F3; values from
+# results/iter1/tune_cams5/summary.json.
+extends: cv_f3.yaml
+results: results/cv/f3_untuned
+
+filter:
+  noise:
+    v_long: 0.05
+    v_lat: 0.05
+    v_scale: 0.002
+    wz: 0.0015
+    bias_rw: 1.0e-5
+
+reloc:
+  sigma:
+    xy_m: 0.3
+    xy_min_m: 0.15
+    yaw_deg: 0.3
+    yaw_min_deg: 0.15

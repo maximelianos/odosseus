@@ -1,0 +1,94 @@
+# Iteration 1 configuration. Every block names the decision in docs/DECISIONS.md that sets it.
+bag: ../hackFiles/c0_2026-10-13_22-53-42_camloc/c0_2026-10-13_22-53-42_camloc_0.mcap
+official_eval: ../hackFiles/c0_2026-10-13_22-53-42_camloc/tools/evaluate.py
+artifacts: artifacts            # derived data (GT cache, map, masks); gitignored
+results: results/iter1          # CSVs, metrics, plots of this iteration
+
+laps:                           # D-002
+  gate_point: [-96.6, 697.6]    # s = 0 of the car's reference line = start/finish
+
+split:                          # D-003
+  train: [L0, L1, L2, L3, L6, L8]
+  tune: [L5]
+  val: [L4, L7]
+
+filter:                         # D-006, D-007
+  v_still: 0.05                 # m/s; below = standstill (no turning, zero-rate bias update)
+  sigma_zero_rate: 0.0005       # rad/s; yaw-rate noise at standstill (measured 0.00032)
+  init_bias_from_standstill: true
+  sigma0_xy: 0.1                # m; first pose = GT (~0.1 m)
+  sigma0_yaw_deg: 0.2
+  sigma0_bias: 3.0e-4           # rad/s; standstill bias differs from the in-motion bias
+  noise:                        # spectral densities; x2 of the first guess, tuned on L5 (D-015)
+    v_long: 0.1                 # m/s/sqrt(Hz)
+    v_lat: 0.1                  # m/s/sqrt(Hz)
+    v_scale: 0.002              # fraction of vx
+    wz: 0.003                   # rad/s/sqrt(Hz)
+    bias_rw: 2.0e-5             # rad/s/sqrt(s)
+
+track_constraint:               # D-008
+  enabled: true
+  margin_m: 1.0                 # GT base_link is never closer than 1.51 m to a border
+  sigma_m: 0.3
+
+reloc:                          # D-009 .. D-013
+  cameras: [cr, cl, rr, fr, rl] # D-013: best accuracy within 100 ms per image set on the M4 CPU (L5)
+  map_name: map
+  gate_nis: 16.27               # chi2(3 dof) at 99.9 %
+  query:                        # D-013
+    radius_m: 8.0               # keyframe search radius around the prediction (+ 3 sigma)
+    max_radius_m: 40.0
+    max_yaw_diff_deg: 30.0
+    keyframes: 3
+    min_kf_points: 30
+    ratio: 0.8
+    min_matches: 20
+    ransac_px: 4.0              # full-res pixels
+    ransac_iters: 1000          # upper bound; OpenCV stops early once confident
+  guided:                       # D-013: drop matches inconsistent with the predicted pose
+    enabled: true
+    n_sigma: 3.0
+    sigma_z_m: 0.2              # height of the camera is taken from the track surface
+    sigma_att_deg: 0.8          # roll/pitch are not estimated (GT range: roll -2.1..1.6, pitch +-2.5)
+    pixel_px: 6.0               # full-res pixels
+    max_deg: 8.0
+  checks:                       # D-013
+    min_inliers: 15
+    min_inlier_ratio: 0.2
+    z_offset_m: -0.05           # median GT base_link height above the border surface
+    max_dz_m: 1.0
+    roll0_deg: -1.25            # median GT roll of base_link
+    max_droll_deg: 3.0
+    max_pitch_deg: 4.0
+  recovery:                     # D-014: gate lock-out guard
+    after_s: 3.0
+    min_rejected: 6
+    inflate_xy_m: 2.0
+    inflate_yaw_deg: 1.0
+  sigma:                        # D-014/D-015: sigma = value * sqrt(ref_inliers / inliers), clipped
+    ref_inliers: 100
+    xy_m: 0.15                  # tuned on L5: 0.5 -> 0.170 m RMSE, 0.3 -> 0.133, 0.15 -> 0.112, 0.1 -> 0.111
+    xy_min_m: 0.08
+    xy_max_m: 2.0
+    yaw_deg: 0.2
+    yaw_min_deg: 0.15
+    yaw_max_deg: 2.0
+  stress:                       # D-017: robustness experiments only; neutral values for real runs
+    gamma: 1.0                  # > 1 darkens, < 1 brightens the decoded image
+    blur_px: 0                  # horizontal box blur (half-res pixels)
+    blackout_s: []              # [start, end] s after the first image: no camera fixes
+  features:                     # D-010
+    n_features: 2000
+    contrast_threshold: 0.02    # OpenCV default 0.04 finds 36-220 keypoints on night images
+    clahe_clip: 2.0
+  map:                          # D-012
+    spacing_m: 2.0              # keyframe every 2 m of travel (every frame above 20 m/s)
+    neighbours: 3               # triangulate against up to 3 later keyframes of the same pass
+    min_baseline_m: 1.0
+    max_baseline_m: 15.0
+    ratio: 0.8                  # Lowe ratio test
+    max_err_px: 2.0             # epipolar / reprojection threshold, full-res pixels
+    min_depth_m: 1.0
+    max_depth_m: 200.0
+    min_parallax_deg: 0.5       # 1.0 deg left the narrow fl camera with a median of 15 points/keyframe
+    max_points_per_kf: 800

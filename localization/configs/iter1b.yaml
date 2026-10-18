@@ -1,0 +1,13 @@
+# Iteration 1, split B (D-003, revised): the out-lap L0 is held out for validation, so the pit lane
+# is validated on a lap that is not in the map. Method and parameters are unchanged from iter1.yaml
+# (split A, both pit laps in the map), which stays as the record of the first validation.
+extends: iter1.yaml
+results: results/iter1b
+
+split:
+  train: [L1, L2, L3, L6, L8]
+  tune: [L5]
+  val: [L0, L4, L7]
+
+reloc:
+  map_name: map_b

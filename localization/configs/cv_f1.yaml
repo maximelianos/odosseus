@@ -1,0 +1,13 @@
+# Cross-validation fold F1 (D-021): slowest warm-up lap + one 40 m/s flying lap; L1 is entered straight from the pit exit.
+# L0 and L8 (both pit passes) are in every fold's map, L5 stays the tuning lap and is in no map.
+# Method and parameters are unchanged from iter1.yaml.
+extends: iter1.yaml
+results: results/cv/f1
+
+split:
+  train: [L0, L2, L3, L4, L7, L8]
+  tune: [L5]
+  val: [L1, L6]
+
+reloc:
+  map_name: map_cv_f1

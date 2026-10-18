@@ -1,0 +1,10 @@
+# Python >= 3.10. No GPU and no pretrained models are needed in iteration 1.
+mcap>=1.2
+mcap-ros2-support>=0.5
+zstandard>=0.22
+lz4>=4.3
+numpy>=1.24
+scipy>=1.10
+opencv-python>=4.8      # SIFT is in the main package since 4.4
+pyyaml>=6.0
+matplotlib>=3.7         # scripts/plot_lap.py

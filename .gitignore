@@ -225,6 +225,12 @@ __marimo__/
 # Dataset (large binaries; keep README.md and tools/ tracked)
 *.mcap
 *.db3
-c0_*/metadata.yaml
+hackFiles/c0_*/metadata.yaml
 data/
 gt.csv
+outputs/
+*.pdf
+
+# D-024 sanity check: third-party screenshots and their match pictures (never commit)
+localization/external_frames/
+localization/results/external/
