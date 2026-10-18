@@ -56,7 +56,7 @@ def run(cfg, bag_path, state, track, init, end_ns=None, reloc=None, log_every=0)
     """init = (stamp_ns, x, y, yaw): the pose the run starts from (first pose of the run, or the GT
     pose at the first image of a validation lap). Returns a dict of per-image-set arrays."""
     fc = cfg['filter']
-    odo = OdometryStream(state, fc['v_still'], fc['sigma_zero_rate'])
+    odo = OdometryStream(state, fc['v_still'], fc['sigma_zero_rate'], fc.get('vx_scale', 1.0))
     t0_ns, x0, y0, yaw0 = init
     bias0 = odo.standstill_bias(t0_ns) if fc['init_bias_from_standstill'] else 0.0
     ekf = PoseEKF(t0_ns, x0, y0, yaw0, bias0,
@@ -68,6 +68,11 @@ def run(cfg, bag_path, state, track, init, end_ns=None, reloc=None, log_every=0)
     # measured time per set includes decoding
     cams = reloc.cameras if reloc else allowed.CAMERAS
     recovery = Recovery(cfg['reloc']['recovery']) if reloc else None
+    vcfg = cfg.get('vo') or {}
+    vo, vo_stats = None, {'pairs': 0, 'accepted': 0, 'rejected': 0}
+    if reloc and vcfg.get('enabled'):                    # E-3: visual-odometry heading change between frames
+        from .vo import VisualOdometry
+        vo = VisualOdometry(vcfg, reloc.calib[vcfg['camera']])
     rows = []
     for s in iter_image_sets(bag_path, cams, t0_ns, end_ns):
         t_start = time.perf_counter()
@@ -77,13 +82,22 @@ def run(cfg, bag_path, state, track, init, end_ns=None, reloc=None, log_every=0)
         n_acc = 0
         for f in fixes:
             acc, nis = ekf.update_pose(f['x'], f['y'], f['yaw'], f['sigma_xy'], f['sigma_yaw'],
-                                       gate=cfg['reloc']['gate_nis'])
+                                       gate=cfg['reloc']['gate_nis'], R_xy=f.get('R_xy'))
             f['accepted'], f['nis'] = acc, nis
             n_acc += acc
         if reloc:
             reloc.feedback(s, fixes, ekf)
             recovery.step(ekf, s.stamp_ns, len(fixes), n_acc)
+        feat = reloc.features.get(vcfg['camera']) if vo is not None else None
+        if feat is not None:
+            r = vo.step(s.stamps[vcfg['camera']], *feat)
+            if r is not None and ekf.clone is not None:
+                acc, _ = ekf.update_relative_yaw(r[0], np.radians(vcfg['sigma_dyaw_deg']), gate=vcfg['gate_nis'])
+                vo_stats['pairs'] += 1
+                vo_stats['accepted' if acc else 'rejected'] += 1
         pushed = track_constraint(ekf, track, tc['margin_m'], tc['sigma_m']) if tc['enabled'] else False
+        if feat is not None:
+            ekf.clone_yaw()                                  # the next frame's heading change starts here
         x, y, yaw = ekf.pose
         rows.append((s.stamp_ns, x, y, yaw, np.sqrt(ekf.P[0, 0] + ekf.P[1, 1]), np.sqrt(ekf.P[2, 2]),
                      ekf.x[3], len(fixes), n_acc, pushed, time.perf_counter() - t_start))
@@ -94,6 +108,7 @@ def run(cfg, bag_path, state, track, init, end_ns=None, reloc=None, log_every=0)
     out = {c: np.array([r[i] for r in rows]) for i, c in enumerate(cols)}
     out['stamp_ns'] = out['stamp_ns'].astype(np.int64)
     out['recoveries'] = np.array(recovery.count if recovery else 0)
+    out['vo_pairs'], out['vo_accepted'] = np.array(vo_stats['pairs']), np.array(vo_stats['accepted'])
     return out
 
 

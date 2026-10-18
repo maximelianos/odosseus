@@ -16,6 +16,7 @@ filter:                         # D-006, D-007
   v_still: 0.05                 # m/s; below = standstill (no turning, zero-rate bias update)
   sigma_zero_rate: 0.0005       # rad/s; yaw-rate noise at standstill (measured 0.00032)
   init_bias_from_standstill: true
+  vx_scale: 1.0                 # E-5: forward-speed correction; fold training laps give 1.0037 (scripts/exp_e5_speed_scale.py)
   sigma0_xy: 0.1                # m; first pose = GT (~0.1 m)
   sigma0_yaw_deg: 0.2
   sigma0_bias: 3.0e-4           # rad/s; standstill bias differs from the in-motion bias
@@ -41,6 +42,7 @@ reloc:                          # D-009 .. D-013
     max_yaw_diff_deg: 30.0
     keyframes: 3
     min_kf_points: 30
+    min_point_parallax_deg: 0.0 # E-2a: drop map points triangulated with less parallax (0 = keep all)
     ratio: 0.8
     min_matches: 20
     ransac_px: 4.0              # full-res pixels
@@ -73,10 +75,16 @@ reloc:                          # D-009 .. D-013
     yaw_deg: 0.2
     yaw_min_deg: 0.15
     yaw_max_deg: 2.0
+    offline_gain: 0.0           # E-6: sigma_xy grows by this many metres per metre of lateral distance from the nearest keyframe
+    offline_mode: isotropic     # E-6: isotropic, or lateral (E-6b: only across the mapped line)
   stress:                       # D-017: robustness experiments only; neutral values for real runs
     gamma: 1.0                  # > 1 darkens, < 1 brightens the decoded image
     blur_px: 0                  # horizontal box blur (half-res pixels)
     blackout_s: []              # [start, end] s after the first image: no camera fixes
+    keep_fraction: 1.0          # E-4: share of image sets whose fixes reach the filter
+    keep_mode: random           # E-4: random (per image set) or blocks (first share of every period)
+    block_period_s: 10.0        # E-4: period of the blocks
+    seed: 0                     # E-4: random generator seed
   features:                     # D-010
     n_features: 2000
     contrast_threshold: 0.02    # OpenCV default 0.04 finds 36-220 keypoints on night images
@@ -92,3 +100,46 @@ reloc:                          # D-009 .. D-013
     max_depth_m: 200.0
     min_parallax_deg: 0.5       # 1.0 deg left the narrow fl camera with a median of 15 points/keyframe
     max_points_per_kf: 800
+
+vo:                             # E-3 (README, Experiments): visual-odometry heading change between frames
+  enabled: false
+  camera: fr
+  ratio: 0.8
+  ransac_px: 1.0                # full-res pixels
+  min_inliers: 30
+  max_dt_s: 0.15                # consecutive frames only (10 Hz)
+  sigma_dyaw_deg: 0.03          # per frame pair; set from E-3b on L5
+  gate_nis: 10.83               # chi2(1 dof) at 99.9 %
+
+borders:                        # E-1 (README, Experiments): lateral position and heading from the track borders
+  enabled: false
+  cameras: [fr, cl, cr]
+  step_m: 0.5                   # border points every 0.5 m
+  min_dist_m: 2.0               # border points this far from the camera ...
+  max_dist_m: 25.0              # ... up to this far
+  min_points: 10
+  band_margin_px: 4.0           # search band = 3 sigma of the prior's image motion + margin (full-res px)
+  band_min_px: 6.0
+  band_max_px: 60.0
+  prior_pitch_deg: 0.3          # nuisance parameters, not estimated by the filter; residual of the models below
+  prior_roll_deg: 0.75
+  prior_z_m: 0.04
+  pitch_from_slope: true        # pitch = gain * road slope (track_bounds z); fold-2 training laps: residual 0.25 deg
+  pitch_slope_gain: 0.90
+  roll_from_ay: true            # roll = gain * ay + bias; fold-2 training laps: residual 0.70 deg
+  roll_ay_gain_deg: -0.129      # deg per m/s^2
+  roll_bias_deg: -0.914
+  sample_px: 0.5
+  smooth_px: 1.0
+  min_gradient: 3.0             # grey levels per pixel, outward dark -> bright
+  n_candidates: 3               # candidate edges per border point
+  ransac_iters: 200
+  ransac_px: 2.0                # full-res pixels
+  min_sigma_px: 0.7
+  huber_k: 1.5
+  cov_inflation: 4.0            # neighbouring border points are not independent
+  max_correction_m: 1.5
+  max_sigma_m: 0.5
+  bias_m: {}                    # per camera, measured on training laps (E-1a)
+  visual: true                  # use the visible edge learned from the training laps (<map>/visual_borders.npz)
+  gate_nis: 13.82               # chi2(2 dof) at 99.9 %

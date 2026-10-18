@@ -7,9 +7,10 @@ class OdometryStream:
     extrapolates the last sample to t. Samples with stamp > t are never read: `max_read` records the
     largest stamp touched, and tests/test_rules.py checks it against t."""
 
-    def __init__(self, state, v_still=0.05, sigma_zero_rate=0.0005):
+    def __init__(self, state, v_still=0.05, sigma_zero_rate=0.0005, vx_scale=1.0):
+        """vx_scale (E-5): constant correction of the forward speed (the car-state speed reads ~0.37 % low)."""
         self.t = state['stamp_ns']
-        self.vx, self.vy, self.wz, self.v = state['vx_mps'], state['vy_mps'], state['wz_radps'], state['v_mps']
+        self.vx, self.vy, self.wz, self.v = state['vx_mps'] * vx_scale, state['vy_mps'], state['wz_radps'], state['v_mps']
         self.v_still = v_still
         self.sigma_zero_rate = sigma_zero_rate
         self.i = 0              # next sample to consume

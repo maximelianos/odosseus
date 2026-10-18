@@ -20,6 +20,7 @@ class PoseEKF:
         sxy, syaw, sb = sigma0
         self.P = np.diag([sxy ** 2, sxy ** 2, syaw ** 2, sb ** 2])
         self.q = noise
+        self.clone = None          # E-3: yaw at the previous frame and its cross-covariance with x
 
     @property
     def pose(self):
@@ -49,6 +50,8 @@ class PoseEKF:
         Q[2, 2] = 0.0 if stationary else q['wz'] ** 2 * dt
         Q[3, 3] = q['bias_rw'] ** 2 * dt
         self.P = F @ self.P @ F.T + Q
+        if self.clone is not None:
+            self.clone['C'] = F @ self.clone['C']
 
     def update(self, z, H, R, yaw_row=None, gate=None):
         """Generic update. Returns (accepted, nis)."""
@@ -66,10 +69,36 @@ class PoseEKF:
         self.x[2] = wrap(self.x[2])
         IKH = np.eye(4) - K @ H
         self.P = IKH @ self.P @ IKH.T + K @ R @ K.T
+        if self.clone is not None:
+            self.clone['C'] = IKH @ self.clone['C']
         return True, nis
 
-    def update_pose(self, x, y, yaw, sigma_xy, sigma_yaw, gate=None):
+    def clone_yaw(self):
+        """E-3: remember the current yaw for a relative-heading measurement (stochastic cloning)."""
+        self.clone = {'yaw': float(self.x[2]), 'C': self.P[:, 2].copy(), 'Pcc': float(self.P[2, 2])}
+
+    def update_relative_yaw(self, dyaw, sigma, gate=None):
+        """E-3: measured heading change since clone_yaw(), z = yaw - yaw_clone. Returns (accepted, nis)."""
+        cl = self.clone
+        if cl is None:
+            return False, float('nan')
+        y = float(wrap(dyaw - (self.x[2] - cl['yaw'])))
+        Pxh = self.P[:, 2] - cl['C']                              # cov(x, yaw - yaw_clone)
+        S = self.P[2, 2] + cl['Pcc'] - 2.0 * cl['C'][2] + sigma ** 2
+        nis = y * y / S
+        if gate is not None and nis > gate:
+            return False, nis
+        K = Pxh / S
+        self.x = self.x + K * y
+        self.x[2] = wrap(self.x[2])
+        self.P = self.P - np.outer(Pxh, Pxh) / S
+        return True, nis
+
+    def update_pose(self, x, y, yaw, sigma_xy, sigma_yaw, gate=None, R_xy=None):
+        """R_xy: optional full 2x2 position covariance (E-6b), otherwise sigma_xy in both directions."""
         R = np.diag([sigma_xy ** 2, sigma_xy ** 2, sigma_yaw ** 2])
+        if R_xy is not None:
+            R[:2, :2] = R_xy
         return self.update(np.array([x, y, yaw]), H_POSE, R, yaw_row=2, gate=gate)
 
     def update_zero_rate(self, wz, sigma):

@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Odosseus · Hackathon Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   THEME — change colors here
+   ========================================================= */
+:root{
+  --ink:#0E1B33;        /* deep navy, main dark (logo color) */
+  --ink-2:#1A2E52;
+  --signal:#FF5B3A;     /* signal orange */
+  --amber:#FFB627;      /* amber */
+  --sea:#3CC8E0;        /* sea blue */
+  --paper:#FFFFFF;
+  --mist:#EEF2F7;
+  --line:#D6DEEA;
+  --muted:#5B6B85;
+  --text:#14213A;
+  --stage:#070D1A;
+  --head:'Space Grotesk', system-ui, sans-serif;
+  --body:'Inter', system-ui, sans-serif;
+  --brand:'Outfit', system-ui, sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--stage);font-family:var(--body);color:var(--text);overflow:hidden}
+
+/* ---------- stage & scaling (slides are 1600×900) ---------- */
+.stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.deck{position:relative;width:1600px;height:900px;transform-origin:center center;flex:none}
+.slide{position:absolute;inset:0;background:var(--paper);overflow:hidden;opacity:0;visibility:hidden;transition:opacity .35s ease}
+.slide.active{opacity:1;visibility:visible}
+
+/* ---------- shared chrome ---------- */
+.content{position:absolute;left:96px;right:96px;top:64px;bottom:110px}
+.kicker{font:600 15px/1 var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.kicker b{color:var(--signal);font-weight:700}
+.kicker::before{content:"";width:28px;height:3px;background:var(--signal);border-radius:2px}
+h2{font:700 58px/1.05 var(--head);color:var(--ink);letter-spacing:-.02em;max-width:1300px}
+h2 em{font-style:normal;color:var(--signal)}
+.sub{font:500 22px/1.4 var(--body);color:var(--ink-2);margin-top:14px;opacity:.85}
+
+.footer{position:absolute;left:0;right:0;bottom:0;height:64px;background:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:0 96px;color:#C9D3E4;font:500 15px/1 var(--body)}
+.footer::before{content:"";position:absolute;left:0;top:0;height:4px;width:100%;background:linear-gradient(90deg,var(--signal) 0 22%,var(--amber) 22% 30%,transparent 30%)}
+.footer .mark{display:flex;align-items:center;gap:10px;font:600 22px/1 var(--brand);color:#fff;--knock:var(--ink)}
+.footer .mark svg{width:34px;height:30px;color:#fff}
+.footer .num{font-variant-numeric:tabular-nums}
+.ph{background:rgba(255,182,39,.22);border-bottom:2px dashed var(--amber);padding:0 6px;border-radius:3px}
+
+/* =========================================================
+   SLIDE 1 — LOGO (black → white intro)
+   ========================================================= */
+.s-logo{background:#fff}
+.s-logo .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:var(--ink)}
+.logo-art{width:560px;height:500px;overflow:visible}
+.logo-art .knock{fill:#fff}
+.wordmark{font:600 132px/1 var(--brand);letter-spacing:.01em}
+
+.s-logo.active{animation:bgToLight 1.8s ease-in-out 1.4s both}
+.s-logo.active .center{animation:fgToInk 1.8s ease-in-out 1.4s both, rise 1s ease-out both}
+.s-logo.active .knock{animation:knockToLight 1.8s ease-in-out 1.4s both}
+@keyframes bgToLight{from{background:#000}to{background:#fff}}
+@keyframes fgToInk{from{color:#fff}to{color:#0E1B33}}
+@keyframes knockToLight{from{fill:#000}to{fill:#fff}}
+@keyframes rise{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.s-logo.active,.s-logo.active .center,.s-logo.active .knock{animation:none}}
+
+/* =========================================================
+   SLIDE 2 — SOLUTION
+   ========================================================= */
+.pipe{display:grid;grid-template-columns:1fr 40px 1fr 40px 1.2fr 40px 1.2fr;margin-top:40px}
+.step{background:var(--mist);border-radius:14px;padding:24px 24px 26px;border-top:5px solid var(--line)}
+.step .n{font:700 13px/1 var(--body);letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.step h3{font:700 25px/1.15 var(--head);color:var(--ink);margin:10px 0 10px}
+.step p{font:400 17px/1.45 var(--body);color:#33425E}
+.step.hl{background:var(--ink);border-top-color:var(--signal)}
+.step.hl h3{color:var(--amber)} .step.hl p{color:#D7DEEA} .step.hl .n{color:#8FA0BE}
+.step.new{border-top-color:var(--sea);background:#E6F7FA}
+.arrow{display:flex;align-items:center;justify-content:center}
+.arrow svg{width:26px;height:20px}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:34px}
+.stat{border-left:4px solid var(--signal);padding:4px 0 4px 20px}
+.stat .v{font:700 46px/1 var(--head);color:var(--ink);letter-spacing:-.02em}
+.stat .v small{font-size:22px;color:var(--muted);margin-left:4px}
+.stat .l{font:500 16px/1.35 var(--body);color:var(--muted);margin-top:8px}
+.stat:nth-child(2){border-color:var(--amber)} .stat:nth-child(3){border-color:var(--sea)} .stat:nth-child(4){border-color:var(--ink-2)}
+.note{margin-top:22px;font:500 15px/1.4 var(--body);color:var(--muted)}
+.note b{color:var(--ink)}
+
+/* =========================================================
+   SLIDE 3 — ENGINEERING DECISIONS
+   ========================================================= */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:34px}
+.card{background:var(--mist);border-radius:14px;padding:26px 32px;border-top:5px solid var(--signal)}
+.card.ok{border-top-color:var(--sea)}
+.card h3{font:700 24px/1 var(--head);color:var(--ink);display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.badge{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font:700 16px/1 var(--body)}
+.no .badge{background:var(--signal)} .ok .badge{background:var(--sea);color:var(--ink)}
+.card ul{list-style:none;display:grid;gap:14px}
+.card li{font:400 18px/1.4 var(--body);color:#2A3854;padding-left:20px;position:relative}
+.card li::before{content:"";position:absolute;left:0;top:10px;width:8px;height:8px;border-radius:2px;background:var(--ink-2)}
+.card li b{color:var(--ink);font-weight:700}
+.insight{margin-top:24px;background:var(--ink);color:#E6ECF5;border-radius:12px;padding:20px 30px;font:500 19px/1.4 var(--body);display:flex;gap:18px;align-items:center}
+.insight b{color:var(--amber)}
+.insight .tag{font:700 13px/1 var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--ink);background:var(--amber);padding:8px 12px;border-radius:6px;flex:none}
+
+/* =========================================================
+   SLIDE 4 — FAILURE CASES
+   ========================================================= */
+.fails{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:38px}
+.fail{display:flex;flex-direction:column}
+.shot{aspect-ratio:1506/728;border-radius:12px;overflow:hidden;position:relative;background:var(--mist);border:2px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted);font:500 15px/1.3 var(--body);text-align:center}
+.shot svg{width:42px;height:42px;opacity:.6}
+.shot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.shot:has(img){border:none}
+.shot .cam{position:absolute;left:12px;top:12px;background:rgba(14,27,51,.85);color:#fff;font:700 12px/1 var(--body);letter-spacing:.12em;padding:7px 10px;border-radius:5px;text-transform:uppercase;z-index:1}
+.fail h3{font:700 23px/1.2 var(--head);color:var(--ink);margin:18px 0 8px}
+.fail p{font:400 17px/1.45 var(--body);color:#33425E}
+.fail p b{color:var(--ink)}
+.fail .err{display:inline-block;margin-top:12px;font:700 15px/1 var(--body);color:var(--signal);background:rgba(255,91,58,.1);padding:8px 12px;border-radius:6px;align-self:flex-start}
+.fail .fix{font:500 15px/1.4 var(--body);color:var(--muted);margin-top:10px}
+.fail .fix b{color:#1B8FA3}
+
+/* ---------- controls ---------- */
+.progress{position:fixed;left:0;bottom:0;height:3px;background:var(--signal);transition:width .3s;z-index:5}
+.hint{position:fixed;right:16px;bottom:12px;color:#5d6f8f;font:500 12px/1 var(--body);z-index:5}
+
+@media print{
+  @page{size:1600px 900px;margin:0}
+  body{overflow:visible;background:#fff}
+  .stage{position:static;display:block}
+  .deck{transform:none!important;width:1600px;height:auto}
+  .slide{position:relative;opacity:1;visibility:visible;width:1600px;height:900px;page-break-after:always;break-after:page}
+  .progress,.hint{display:none}
+  *{animation:none!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<!-- Logo symbol (ship with eye sail). Shapes use currentColor; eye cut-out uses --knock -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ship" viewBox="300 210 720 640">
+      <g fill="currentColor">
+        <rect x="598" y="228" width="28" height="70" rx="2"/>
+        <path d="M432 290 C620 292 800 340 845 470 C870 545 855 590 828 622 C740 560 600 570 425 682 C510 560 540 420 432 290 Z"/>
+        <rect x="598" y="606" width="28" height="56" rx="2"/>
+        <path d="M378 712 L830 628 C900 612 930 572 928 522 C926 486 955 465 990 468 C1006 470 1008 479 1000 491 L989 512 C985 497 975 498 968 506 C960 516 962 531 965 546 C985 622 950 692 896 745 C882 759 872 770 866 779 C780 766 700 726 600 723 C490 720 420 766 325 795 Z"/>
+        <path d="M318 826 C420 806 520 742 640 742 C760 742 830 800 938 797 C850 819 760 806 650 779 C530 756 430 819 318 826 Z"/>
+      </g>
+      <path style="fill:var(--knock,#fff)" d="M537 462 C600 395 728 395 792 462 C728 530 600 530 537 462 Z"/>
+      <circle cx="664" cy="462" r="52" fill="currentColor"/>
+      <circle cx="688" cy="440" r="13" style="fill:var(--knock,#fff)"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="stage">
+<div class="deck" id="deck">
+
+  <!-- ====================== SLIDE 1 · LOGO ====================== -->
+  <section class="slide s-logo">
+    <div class="center">
+      <svg class="logo-art" viewBox="300 210 720 640" role="img" aria-label="Odosseus logo: a ship whose sail is an eye">
+        <g fill="currentColor">
+          <rect x="598" y="228" width="28" height="70" rx="2"/>
+          <path d="M432 290 C620 292 800 340 845 470 C870 545 855 590 828 622 C740 560 600 570 425 682 C510 560 540 420 432 290 Z"/>
+          <rect x="598" y="606" width="28" height="56" rx="2"/>
+          <path d="M378 712 L830 628 C900 612 930 572 928 522 C926 486 955 465 990 468 C1006 470 1008 479 1000 491 L989 512 C985 497 975 498 968 506 C960 516 962 531 965 546 C985 622 950 692 896 745 C882 759 872 770 866 779 C780 766 700 726 600 723 C490 720 420 766 325 795 Z"/>
+          <path d="M318 826 C420 806 520 742 640 742 C760 742 830 800 938 797 C850 819 760 806 650 779 C530 756 430 819 318 826 Z"/>
+        </g>
+        <path class="knock" d="M537 462 C600 395 728 395 792 462 C728 530 600 530 537 462 Z"/>
+        <circle cx="664" cy="462" r="52" fill="currentColor"/>
+        <circle class="knock" cx="688" cy="440" r="13"/>
+      </svg>
+      <div class="wordmark">odosseus</div>
+    </div>
+  </section>
+
+  <!-- ====================== SLIDE 2 · SOLUTION (Exp23) ====================== -->
+  <section class="slide">
+    <div class="content">
+      <div class="kicker"><b>02</b> Our solution</div>
+      <h2>Car state predicts, <em>the map corrects</em></h2>
+      <p class="sub">A causal filter: odometry bridges 0.1 s, cameras give absolute fixes, and weak fixes are trusted less.</p>
+
+      <div class="pipe">
+        <div class="step">
+          <div class="n">Offline</div>
+          <h3>3D map</h3>
+          <p>SuperPoint on all training frames, triangulated with training poses. 20 M points cached on GPU.</p>
+        </div>
+        <div class="arrow"><svg viewBox="0 0 30 20"><path d="M0 10 H24 M17 3 L25 10 L17 17" fill="none" stroke="#FF5B3A" stroke-width="3"/></svg></div>
+        <div class="step">
+          <div class="n">Predict</div>
+          <h3>Car-state EKF</h3>
+          <p>Speed, vx, vy and yaw rate. ~2 cm drift per frame, so no visual odometry.</p>
+        </div>
+        <div class="arrow"><svg viewBox="0 0 30 20"><path d="M0 10 H24 M17 3 L25 10 L17 17" fill="none" stroke="#FF5B3A" stroke-width="3"/></svg></div>
+        <div class="step hl">
+          <div class="n">Correct</div>
+          <h3>Guided matching + PnP</h3>
+          <p>Project map points with the predicted pose, match within ±24 px, solve one 6-DoF PnP over all 7 cameras.</p>
+        </div>
+        <div class="arrow"><svg viewBox="0 0 30 20"><path d="M0 10 H24 M17 3 L25 10 L17 17" fill="none" stroke="#FF5B3A" stroke-width="3"/></svg></div>
+        <div class="step new">
+          <div class="n">Weigh · Exp23</div>
+          <h3>Selective trust</h3>
+          <p>Fixes with few inliers or far from mapped lines get less weight; the car state carries the pose there.</p>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="v">0.12<small>–0.13 m</small></div><div class="l">Position RMSE, 6 held-out laps<br>(0.156 m without Exp23)</div></div>
+        <div class="stat"><div class="v">0.21<small>m</small></div><div class="l">Hardest lap L2, unmapped line<br>(0.30 m without Exp23)</div></div>
+        <div class="stat"><div class="v">1–2<small>s</small></div><div class="l">Recovery from 3–80 m<br>injected pose errors</div></div>
+        <div class="stat"><div class="v">41<small>ms</small></div><div class="l">Per 7-camera frame<br>on <span class="ph">GPU model</span></div></div>
+      </div>
+      <p class="note"><b>Trade-off:</b> on the well-mapped tuning lap L5 it costs 0.017–0.026 m, so tuning the weighting on held-out laps is the next step.</p>
+    </div>
+    <footer class="footer">
+      <div class="mark"><svg><use href="#ship"/></svg>odosseus</div>
+      <div>Camera-based localization · National AI Hackathon 2026</div>
+      <div class="num">02</div>
+    </footer>
+  </section>
+
+  <!-- ====================== SLIDE 3 · ENGINEERING DECISIONS ====================== -->
+  <section class="slide">
+    <div class="content">
+      <div class="kicker"><b>03</b> Engineering decisions</div>
+      <h2>What we dropped, and <em>why this works</em></h2>
+
+      <div class="cols">
+        <div class="card no">
+          <h3><span class="badge">✕</span> Didn't work</h3>
+          <ul>
+            <li><b>Learned SLAM</b> (MASt3R-SLAM, VGGT-Long): lost track or 313 m error. 4 m between frames at night is too much.</li>
+            <li><b>Visual odometry</b>: best camera-only VO 43 m over 2 laps, vs 20.5 m from car state alone.</li>
+            <li><b>Track-border alignment</b>: cameras sit 0.4 m high, so 0.5 m sideways moves the border ~1 px.</li>
+            <li><b>Trusting odometry everywhere</b>: global down-weighting of fixes doubled the error on L5.</li>
+          </ul>
+        </div>
+        <div class="card ok">
+          <h3><span class="badge">✓</span> Why we chose this</h3>
+          <ul>
+            <li><b>Car state for motion</b>: 4× more accurate than VO over 1–10 s. Cameras do what odometry can't: absolute fixes.</li>
+            <li><b>Prediction makes matching cheap</b>: guided search replaces retrieval, 410 → 41 ms.</li>
+            <li><b>All 7 cameras in one PnP</b>: with one camera, yaw and sideways shift blur together (0.5 → 0.12 m).</li>
+            <li><b>Down-weight only weak fixes</b>: keeps accuracy where the map is good, helps where it isn't.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="insight"><span class="tag">Key insight</span>
+        <span>The floor is the ground truth, not the matcher: every parameter sweep lands at <b>0.103–0.108 m</b>, next to the GT's own ~0.1 m.</span>
+      </div>
+    </div>
+    <footer class="footer">
+      <div class="mark"><svg><use href="#ship"/></svg>odosseus</div>
+      <div>Camera-based localization · National AI Hackathon 2026</div>
+      <div class="num">03</div>
+    </footer>
+  </section>
+
+  <!-- ====================== SLIDE 4 · FAILURE CASES ====================== -->
+  <!-- To add an image: put <img src="your-image.jpg" alt=""> inside the .shot div. -->
+  <section class="slide">
+    <div class="content">
+      <div class="kicker"><b>04</b> Failure cases</div>
+      <h2>Where Odosseus <em>loses the line</em></h2>
+
+      <div class="fails">
+        <div class="fail">
+          <div class="shot">
+            <span class="cam"><span class="ph">cam</span></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+            Image goes here
+          </div>
+          <h3>Line no map lap drove</h3>
+          <p>L2's warm-up line runs up to <b>14 m</b> from every map lap. Matches thin out and the error grows locally.</p>
+          <span class="err">1.7–2.4 m locally</span>
+          <p class="fix"><b>Mitigation:</b> map from all 9 laps; Exp23 down-weights these fixes (L2 0.30 → 0.21 m).</p>
+        </div>
+        <div class="fail">
+          <div class="shot">
+            <span class="cam"><span class="ph">cam</span></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+            Image goes here
+          </div>
+          <h3>Wrong relocalisation</h3>
+          <p>Off the mapped lines the filter declared itself lost and jumped <b>18 m</b> to a wrong place.</p>
+          <span class="err">L2: 3.7 m RMSE</span>
+          <p class="fix"><b>Fix:</b> jumps must be plausible against dead reckoning. Open: a wrong fix with 328 inliers can still pass the bypass.</p>
+        </div>
+        <div class="fail">
+          <div class="shot">
+            <span class="cam"><span class="ph">cam</span></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+            Image goes here
+          </div>
+          <h3>Hard left turns</h3>
+          <p>At ~5 m/s² lateral acceleration the car rolls; we see outward lateral error and heading lag.</p>
+          <span class="err">up to 0.45 m</span>
+          <p class="fix"><b>Next:</b> looser roll/pitch priors when |ay| is large, per-camera weights in turns.</p>
+        </div>
+      </div>
+    </div>
+    <footer class="footer">
+      <div class="mark"><svg><use href="#ship"/></svg>odosseus</div>
+      <div>Camera-based localization · National AI Hackathon 2026</div>
+      <div class="num">04</div>
+    </footer>
+  </section>
+
+</div>
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="hint">← → navigate · F fullscreen · Ctrl+P export PDF</div>
+
+<script>
+(function(){
+  const deck = document.getElementById('deck');
+  const slides = [...deck.querySelectorAll('.slide')];
+  const bar = document.getElementById('progress');
+  let i = Math.max(0, Math.min(slides.length-1, (parseInt(location.hash.slice(1))||1)-1));
+  function fit(){ deck.style.transform = 'scale(' + Math.min(innerWidth/1600, innerHeight/900) + ')'; }
+  function show(n){
+    i = Math.max(0, Math.min(slides.length-1, n));
+    slides.forEach((s,k)=>s.classList.toggle('active', k===i));
+    bar.style.width = ((i+1)/slides.length*100) + '%';
+    history.replaceState(null,'','#'+(i+1));
+  }
+  addEventListener('resize', fit);
+  addEventListener('keydown', e=>{
+    if(['ArrowRight','PageDown',' ','Enter'].includes(e.key)){e.preventDefault();show(i+1)}
+    else if(['ArrowLeft','PageUp','Backspace'].includes(e.key)){e.preventDefault();show(i-1)}
+    else if(e.key==='Home') show(0);
+    else if(e.key==='End') show(slides.length-1);
+    else if(e.key.toLowerCase()==='f'){ document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); }
+  });
+  addEventListener('click', e=>{ show(e.clientX > innerWidth/2 ? i+1 : i-1); });
+  fit(); show(i);
+})();
+</script>
+</body>
+</html>

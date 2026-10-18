@@ -1,0 +1,12 @@
+# E-5 + E-6b on fold 3 (README, Experiments): forward-speed scale from the fold's training laps, and
+# fix sigma growing across the mapped line with the distance from the nearest keyframe.
+extends: ../cv_f3.yaml
+results: results/experiments/e6_offline_sigma/f3_lateral_e5
+
+filter:
+  vx_scale: 1.00373
+
+reloc:
+  sigma:
+    offline_gain: 0.10
+    offline_mode: lateral

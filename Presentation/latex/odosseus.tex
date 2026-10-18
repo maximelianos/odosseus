@@ -1,0 +1,108 @@
+% !TEX program = lualatex
+% Odosseus hackathon deck, LaTeX version of ../odysseus-presentation.html.
+% Build:  latexmk          (uses ./latexmkrc: LuaLaTeX, output odosseus.pdf)
+% Theme:  beamerthemeodosseus.sty  (colors, fonts and the slide building blocks)
+\documentclass[aspectratio=169]{beamer}   % 160 x 90 mm = the HTML's 1600 x 900 px
+\usetheme{odosseus}
+
+\begin{document}
+
+% ====================== SLIDE 1 · LOGO ======================
+% The car image is © Constructor (from slide 2 of the challenge INTRO deck) and licensed for the hackathon only:
+% it is kept out of git (see .gitignore); without the file the slide shows a short "not found" note instead.
+\renewcommand\logocaption{"He is never at a loss"}   % caption, centred under the logo and the car
+\renewcommand\logoside{images/a2rl_constructor_car_side.png}
+\renewcommand\logocredits{Car image © Constructor 2026 (constructor.org), from the challenge INTRO slides, used for the National AI Hackathon 2026
+  \quad·\quad The Odosseus logo was generated with ChatGPT (OpenAI)}
+\logoslide
+
+% ====================== SLIDE 2 · SOLUTION (Exp23) ======================
+\begin{odslide}
+  \kicker{02}{Our solution}
+  \slidetitle{Car state predicts, \highlight{the map corrects}}
+  \slidesub{A causal filter: odometry bridges 0.1 s, cameras give absolute fixes, and weak fixes are trusted less.}
+
+  \begin{pipeline}[210]     % [step height in px]
+    \pipestep{plain}{Offline}{3D Feature map}{SuperPoint on all training frames, triangulated with training poses. 20 M points cached on GPU.}
+    \pipearrow
+    \pipestep{plain}{Predict}{Car-state EKF}{Speed, vx, vy and yaw rate. \textasciitilde observed 2 cm drift per frame, so skipped visual odometry.}
+    \pipearrow
+    \pipestep[1.2]{hl}{Localize}{SuperPoint+LightGlue}{}
+    \pipearrow
+    \pipestep[1.2]{new}{Tune}{Gated Filter}{Fixes with few inliers or far from mapped lines get less weight; the car state carries the pose there.}
+  \end{pipeline}
+
+  \begin{stats}
+    \stat{0.12}{–0.13 m}{Position RMSE, 6 held-out laps\\(0.156 m without Exp23)}
+    \stat{0.21}{m}{Hardest lap L2, unmapped line\\(0.30 m without Exp23)}
+    \stat{1–2}{s}{Recovery from 3–80 m\\injected pose errors}
+    \stat{41}{ms}{Per 7-camera frame\\on \ph{GPU model}}
+  \end{stats}
+  \slidenote{\textbf{Trade-off:} on the well-mapped tuning lap L5 it costs 0.017–0.026 m, so tuning the weighting on held-out laps is the next step.}
+\end{odslide}
+
+% ====================== SLIDE 3 · ENGINEERING DECISIONS ======================
+\begin{odslide}
+  \kicker{03}{Engineering decisions}
+  \slidetitle{What we dropped, and \highlight{why this works}}
+
+  \begin{cards}[330]        % [card height in px]
+    \card{no}{Didn't work}{
+      \point{\textbf{Learned SLAM} (MASt3R-SLAM, VGGT-Long): lost track or 313 m error. 4 m between frames at night is too much.}
+      \point{\textbf{Visual odometry}: best camera-only VO 43 m over 2 laps, vs 20.5 m from car state alone.}
+      \point{\textbf{Track-border alignment}: cameras sit 0.4 m high, so 0.5 m sideways moves the border \textasciitilde 1 px.}
+      \point{\textbf{Trusting odometry everywhere}: global down-weighting of fixes doubled the error on L5.}}
+    \card{ok}{Why we chose this}{
+      \point{\textbf{Car state for motion}: 4× more accurate than VO over 1–10 s. Cameras do what odometry can't: absolute fixes.}
+      \point{\textbf{Prediction makes matching cheap}: guided search replaces retrieval, 410 \ra{} 41 ms.}
+      \point{\textbf{All 7 cameras in one PnP}: with one camera, yaw and sideways shift blur together (0.5 \ra{} 0.12 m).}
+      \point{\textbf{Down-weight only weak fixes}: keeps accuracy where the map is good, helps where it isn't.}}
+  \end{cards}
+
+  \insight{Key insight}{The floor is the ground truth, not the matcher: every parameter sweep lands at \textbf{0.103–0.108 m}, next to the GT's own \textasciitilde 0.1 m.}
+\end{odslide}
+
+% ====================== SLIDE 4 · FAILURE CASES ======================
+% To add an image: put the file in ./images and give its path as the first argument,
+% e.g. \failcase{images/l2_offline.jpg}{cl}{...}. {} keeps the placeholder.
+\begin{odslide}
+  \kicker{04}{Failure cases}
+  \slidetitle{Where Odosseus \highlight{loses the line}}
+
+  \begin{fails}
+    \failcase{}{\ph{CAM}}{Line no map lap drove}
+      {L2's warm-up line runs up to \textbf{14 m} from every map lap. Matches thin out and the error grows locally.}
+      {1.7–2.4 m locally}
+      {\textbf{Mitigation:} map from all 9 laps; Exp23 down-weights these fixes (L2 0.30 \ra{} 0.21 m).}
+    \failcase{}{\ph{CAM}}{Wrong relocalisation}
+      {Off the mapped lines the filter declared itself lost and jumped \textbf{18 m} to a wrong place.}
+      {L2: 3.7 m RMSE}
+      {\textbf{Fix:} jumps must be plausible against dead reckoning. Open: a wrong fix with 328 inliers can still pass the bypass.}
+    \failcase{}{\ph{CAM}}{Hard left turns}
+      {At \textasciitilde 5 m/s² lateral acceleration the car rolls; we see outward lateral error and heading lag.}
+      {up to 0.45 m}
+      {\textbf{Next:} looser roll/pitch priors when |ay| is large, per-camera weights in turns.}
+  \end{fails}
+\end{odslide}
+
+% ====================== SLIDE 5 · VISUALIZATION ======================
+% Links: run:videos/... plays the local copy next to the PDF; replace with an https:// link once uploaded.
+\begin{odslide}
+  \kicker{05}{Visualization}
+  \slidetitle{The localizer, \highlight{live at 10 Hz}}
+  \slidesub{The estimate against ground truth on a held-out night lap, with every metric computed live.}
+
+  \bigvideo{images/viz_mapped_poster.jpg}{run:videos/mapped_L7_0-30s.mp4}{MAPPED MODE · NIGHT · CLICK TO PLAY}
+    {Validation lap L7, first 30 s}
+    {Replayed at 10 Hz from the continuous run; L7 is not in the map.\par\vspace{14\px}
+     \textbf{0.136 m} position RMSE\\ \textbf{0.054 m} lateral RMSE\\ \textbf{100 \%} of poses within 1 m\par\vspace{14\px}
+     Track view, chase view, error scope, live lateral and heading error, camera fixes and running metrics; the official scorer agrees.}
+\end{odslide}
+
+% ====================== SLIDE 6 · SUMMARY ======================
+\summaryslide{06}{Thank you}{
+  \sumword{Predict,}{The car state carries the pose between frames.}
+  \sumword{Localize,}{Camera fixes against a map of the night laps correct it.}
+  \sumword{Tune}{On a held-out lap, checked on laps the map has never seen.}}
+
+\end{document}

@@ -239,3 +239,5 @@ localization/results/external/
 hackFiles/
 # experiment scripts of iteration 2 (E-1..E-6), kept local
 localization/scripts/exp*
+#tools
+tools/

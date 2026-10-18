@@ -1,0 +1,5 @@
+# Build with LuaLaTeX (fontspec fonts from ./fonts); `latexmk` alone builds odosseus.pdf
+$pdf_mode = 4;
+$postscript_mode = $dvi_mode = 0;
+@default_files = ('odosseus.tex');
+$lualatex = 'lualatex -interaction=nonstopmode -synctex=1 -file-line-error %O %S';

@@ -20,13 +20,18 @@ from .mapbuild import load_cameras, load_mask
 
 
 class CameraMap:
-    def __init__(self, path):
+    def __init__(self, path, min_parallax_deg=0.0):
         d = np.load(path)
         self.kf_base = d['kf_base']
         self.kf_window = d['kf_window']
         self.off = d['pt_offset']
         self.xyz = d['pt_xyz']
         self.desc = d['pt_desc']
+        if min_parallax_deg > 0:                              # E-2a: only points with well-determined depth
+            keep = d['pt_parallax'].astype(np.float32) >= min_parallax_deg
+            kf_of_pt = np.repeat(np.arange(len(self.off) - 1), np.diff(self.off))
+            self.off = np.r_[0, np.cumsum(np.bincount(kf_of_pt[keep], minlength=len(self.off) - 1))]
+            self.xyz, self.desc = self.xyz[keep], self.desc[keep]
         self.n_pts = np.diff(self.off)
         self.tree = cKDTree(self.kf_base[:, :2])
 
@@ -53,7 +58,8 @@ class Relocalizer:
         self.calib = calib
         self.ext = {c: Extractor(calib[c], self.rc['features'], load_mask(cfg, c)) for c in self.cameras}
         name = map_name or self.rc['map_name']
-        self.maps = {c: CameraMap(config.artifact(cfg, name, f'{c}.npz')) for c in self.cameras}
+        self.maps = {c: CameraMap(config.artifact(cfg, name, f'{c}.npz'), self.rc['query'].get('min_point_parallax_deg', 0.0))
+                     for c in self.cameras}
         self.T_cam_base = {c: inv_T(calib[c].T_base_cam) for c in self.cameras}
         self.track = track or TrackMap(dict(np.load(config.artifact(cfg, 'track_bounds.npz'))))
         self.stats = {c: {'tried': 0, 'fix': 0, 'accepted': 0} for c in self.cameras}
@@ -65,7 +71,17 @@ class Relocalizer:
         self.lut = None if g == 1.0 else np.clip(255 * (np.arange(256) / 255.0) ** g, 0, 255).astype(np.uint8)
         self.blur = int(st.get('blur_px', 0))
         self.blackout = st.get('blackout_s') or []
+        # E-4: keep only a fraction of the fixes (random image sets, or periodic blocks of time)
+        self.keep = float(st.get('keep_fraction', 1.0))
+        self.keep_mode = st.get('keep_mode', 'random')
+        self.block_period = float(st.get('block_period_s', 10.0))
+        self.rng = np.random.default_rng(int(st.get('seed', 0)))
+        self.dropped = 0
         self.t_first = None
+        # E-3: the features of the visual-odometry camera are kept for every frame
+        vo = cfg.get('vo') or {}
+        self.feature_cam = vo['camera'] if vo.get('enabled') else None
+        self.features = {}
 
     @staticmethod
     def decode(cam, data):
@@ -81,6 +97,7 @@ class Relocalizer:
         x, y, yaw = ekf.pose
         sxy, syaw = np.sqrt(0.5 * (ekf.P[0, 0] + ekf.P[1, 1])), np.sqrt(ekf.P[2, 2])
         self.t_first = self.t_first or image_set.stamp_ns
+        self.features = {}
         if self.blackout and self.blackout[0] <= (image_set.stamp_ns - self.t_first) / 1e9 < self.blackout[1]:
             return []
 
@@ -101,6 +118,15 @@ class Relocalizer:
             if f.get('ok'):
                 self.stats[c]['fix'] += 1
                 out.append(f)
+        if self.keep < 1.0 and out:
+            t = (image_set.stamp_ns - self.t_first) / 1e9
+            if self.keep_mode == 'blocks':
+                kept = (t % self.block_period) < self.keep * self.block_period
+            else:
+                kept = self.rng.random() < self.keep
+            if not kept:
+                self.dropped += len(out)
+                return []
         return out
 
     def feedback(self, image_set, fixes, ekf):
@@ -137,10 +163,14 @@ class Relocalizer:
         q, chk = self.rc['query'], self.rc['checks']
         cmap = self.maps[cam]
         radius = self.search_radius(sigma_xy)
+        feats = None
+        if cam == self.feature_cam:                           # E-3: needed every frame, keyframes or not
+            feats = self.ext[cam](gray)
+            self.features[cam] = feats[:2]
         cands = cmap.candidates(x, y, yaw, radius, np.radians(q['max_yaw_diff_deg']), q['keyframes'], q['min_kf_points'])
         if not cands:
             return {'cam': cam, 'ok': False, 'fail': 'no_keyframe'}
-        uv, desc, _ = self.ext[cam](gray)
+        uv, desc, _ = feats if feats is not None else self.ext[cam](gray)
         if len(desc) < q['min_matches']:
             return {'cam': cam, 'ok': False, 'fail': 'few_features'}
         dq = desc.astype(np.float32)
@@ -185,6 +215,10 @@ class Relocalizer:
              'tentative': n_tentative, 'inliers': int(len(inl)), 'rms_px': float(np.sqrt(np.mean(res ** 2))),
              'n_kf': len(cands)}
         f['dz'] = float(zb - self.track.ground_z((xb, yb)) - chk['z_offset_m'])
+        # E-6: lateral distance of the fix from the nearest candidate keyframe (~ from the mapped line)
+        kb = cmap.kf_base[cands]
+        near = int(np.argmin(np.hypot(kb[:, 0] - xb, kb[:, 1] - yb)))
+        f['kf_lateral_m'] = float(abs(-np.sin(kb[near, 2]) * (xb - kb[near, 0]) + np.cos(kb[near, 2]) * (yb - kb[near, 1])))
         if abs(f['dz']) > chk['max_dz_m']:
             f.update(ok=False, fail='height')
         elif abs(f['roll'] - chk['roll0_deg']) > chk['max_droll_deg'] or abs(f['pitch']) > chk['max_pitch_deg']:
@@ -194,6 +228,17 @@ class Relocalizer:
         else:
             s = self.rc['sigma']
             k = np.sqrt(s['ref_inliers'] / f['inliers'])
-            f.update(ok=True, sigma_xy=float(np.clip(s['xy_m'] * k, s['xy_min_m'], s['xy_max_m'])),
+            sxy = s['xy_m'] * k
+            if s.get('offline_gain', 0.0) > 0:                 # E-6: fixes get worse off the mapped line
+                slat = float(np.hypot(sxy, s['offline_gain'] * f['kf_lateral_m']))
+                if s.get('offline_mode', 'isotropic') == 'lateral':
+                    # E-6b: only across the mapped line (left normal of the nearest keyframe's heading)
+                    nv = np.array([-np.sin(kb[near, 2]), np.cos(kb[near, 2])])
+                    slon_c = float(np.clip(sxy, s['xy_min_m'], s['xy_max_m']))
+                    slat_c = float(np.clip(slat, s['xy_min_m'], s['xy_max_m']))
+                    f['R_xy'] = slon_c ** 2 * (np.eye(2) - np.outer(nv, nv)) + slat_c ** 2 * np.outer(nv, nv)
+                else:
+                    sxy = slat
+            f.update(ok=True, sigma_xy=float(np.clip(sxy, s['xy_min_m'], s['xy_max_m'])),
                      sigma_yaw=float(np.radians(np.clip(s['yaw_deg'] * k, s['yaw_min_deg'], s['yaw_max_deg']))))
         return f

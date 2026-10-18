@@ -1,0 +1,19 @@
+# LaTeX build files (latexmk / LaTeX Workshop)
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+build.log
+
+# Car image: (c) Constructor, from the challenge INTRO slides, licensed for the hackathon only.
+# Keep it out of the public repository; the deck builds without it (the logo slide shows a "not found" note).
+images/a2rl_constructor_car_side*.png
+
+# Visualization videos: copies of visualization/outputs/*/*.mp4 (rebuild with visualization/run_viz.py)
+videos/

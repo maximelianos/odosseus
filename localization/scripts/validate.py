@@ -65,7 +65,10 @@ def main():
         m['fixes_accepted'] = int(res['n_accepted'].sum())
         m['fixes_rejected'] = int((res['n_fix'] - res['n_accepted']).sum())
         m['recoveries'] = int(res['recoveries'])
+        m['vo_pairs'], m['vo_accepted'] = int(res['vo_pairs']), int(res['vo_accepted'])    # E-3 only
         if reloc:
+            m['fixes_dropped_stress'] = int(reloc.dropped)                  # E-4 only
+            reloc.dropped = 0
             m['per_camera'] = {c: dict(v) for c, v in reloc.stats.items()}
             for v in reloc.stats.values():
                 v.update(tried=0, fix=0, accepted=0)

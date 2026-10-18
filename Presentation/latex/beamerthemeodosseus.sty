@@ -1,0 +1,377 @@
+% =====================================================================
+%  Odosseus Beamer theme — a LaTeX copy of ../odysseus-presentation.html
+%  Compile with LuaLaTeX (fontspec):  latexmk  (see latexmkrc)
+%
+%  Units: the HTML deck is 1600 x 900 px; this deck is 160 x 90 mm,
+%  so 1 px = 0.1 mm. Sizes below are the HTML's px values, written as
+%  e.g. 58\px, and font sizes as \pxfont{<px>}{<line height>}.
+% =====================================================================
+\ProvidesPackage{beamerthemeodosseus}
+
+\RequirePackage{fontspec}
+\RequirePackage{tikz}
+\usetikzlibrary{svg.path,calc,backgrounds}
+\RequirePackage{graphicx}
+\RequirePackage{etoolbox}
+
+% ---------------------------------------------------------------------
+%  THEME — change colors here (same names as the HTML :root variables)
+% ---------------------------------------------------------------------
+\definecolor{ink}{HTML}{0E1B33}      % deep navy, main dark (logo color)
+\definecolor{ink2}{HTML}{1A2E52}
+\definecolor{signal}{HTML}{FF5B3A}   % signal orange
+\definecolor{amber}{HTML}{FFB627}
+\definecolor{sea}{HTML}{3CC8E0}      % sea blue
+\definecolor{paper}{HTML}{FFFFFF}
+\definecolor{mist}{HTML}{EEF2F7}
+\definecolor{line}{HTML}{D6DEEA}
+\definecolor{muted}{HTML}{5B6B85}
+\definecolor{text}{HTML}{14213A}
+% shades used by single elements
+\definecolor{bodytext}{HTML}{33425E}    % step / failure paragraphs
+\definecolor{cardtext}{HTML}{2A3854}    % card bullet text
+\definecolor{footertext}{HTML}{C9D3E4}
+\definecolor{hltext}{HTML}{D7DEEA}      % text on the dark (highlighted) step
+\definecolor{hlnum}{HTML}{8FA0BE}
+\definecolor{insighttext}{HTML}{E6ECF5}
+\definecolor{fixtext}{HTML}{1B8FA3}
+\definecolor{newbg}{HTML}{E6F7FA}       % "new" step background
+\definecolor{introblue}{HTML}{00214E}    % Constructor blue of the INTRO slides (summary slide)
+
+% ---------------------------------------------------------------------
+%  Fonts (TTF files in ./fonts, from Google Fonts / Fontsource, OFL)
+% ---------------------------------------------------------------------
+\newcommand\odfontopts{Path=./fonts/, Extension=.ttf}
+\setsansfont{inter}[Path=./fonts/, Extension=.ttf, UprightFont=*-400, BoldFont=*-700]
+\newfontfamily\intermedium{inter-500}[Path=./fonts/, Extension=.ttf, BoldFont=inter-700]
+\newfontfamily\intersemibold{inter-600}[Path=./fonts/, Extension=.ttf, BoldFont=inter-700]
+\newfontfamily\interbold{inter-700}[Path=./fonts/, Extension=.ttf]
+\newfontfamily\headfont{space-grotesk-700}[Path=./fonts/, Extension=.ttf]   % titles
+\newfontfamily\brandfont{outfit-600}[Path=./fonts/, Extension=.ttf]         % logo wordmark
+\renewcommand\familydefault{\sfdefault}
+
+% ---------------------------------------------------------------------
+%  Units and sizes
+% ---------------------------------------------------------------------
+\newlength\px \setlength\px{0.1mm}
+% \pxfont{<size px>}{<line height factor>}: CSS "font: <size>px/<lh>"
+\newcommand\pxfont[2]{\fontsize{\fpeval{#1*0.284528}}{\fpeval{#1*#2*0.284528}}\selectfont}
+\newcommand\tracking[1]{\addfontfeature{LetterSpace=#1}}   % CSS letter-spacing, in % of the font size
+
+\newlength\contentwidth \setlength\contentwidth{1408\px}  % 1600 - 2 x 96
+\newcommand\footertext{Camera-based localization · National AI Hackathon 2026}
+
+% ---------------------------------------------------------------------
+%  Beamer setup
+% ---------------------------------------------------------------------
+\setbeamertemplate{navigation symbols}{}
+\setbeamersize{text margin left=96\px, text margin right=96\px}
+\setbeamercolor{normal text}{fg=text, bg=paper}
+\setbeamertemplate{headline}{}
+\setbeamertemplate{footline}{}
+
+% ---------------------------------------------------------------------
+%  The logo (ship with eye sail): \odlogo{<width>}{<ship color>}{<eye cut-out color>}
+% ---------------------------------------------------------------------
+\newcommand\odlogo[3]{%
+  \begin{tikzpicture}[baseline=(base)]
+    \pgfmathsetmacro\odscale{#1/720pt}
+    \begin{scope}[scale=\odscale, yscale=-1, shift={(-300pt,-210pt)}]   % SVG viewBox 300 210 720 640, y down
+      \fill[#2] (598pt,228pt) rectangle ++(28pt,70pt);
+      \fill[#2] svg "M432 290 C620 292 800 340 845 470 C870 545 855 590 828 622 C740 560 600 570 425 682 C510 560 540 420 432 290 Z";
+      \fill[#2] (598pt,606pt) rectangle ++(28pt,56pt);
+      \fill[#2] svg "M378 712 L830 628 C900 612 930 572 928 522 C926 486 955 465 990 468 C1006 470 1008 479 1000 491 L989 512 C985 497 975 498 968 506 C960 516 962 531 965 546 C985 622 950 692 896 745 C882 759 872 770 866 779 C780 766 700 726 600 723 C490 720 420 766 325 795 Z";
+      \fill[#2] svg "M318 826 C420 806 520 742 640 742 C760 742 830 800 938 797 C850 819 760 806 650 779 C530 756 430 819 318 826 Z";
+      \fill[#3] svg "M537 462 C600 395 728 395 792 462 C728 530 600 530 537 462 Z";
+      \fill[#2] (664pt,462pt) circle (52pt);
+      \fill[#3] (688pt,440pt) circle (13pt);
+      \coordinate (base) at (300pt,850pt);
+    \end{scope}
+  \end{tikzpicture}}
+
+% ---------------------------------------------------------------------
+%  Background: white page + navy footer (not on the logo slide)
+% ---------------------------------------------------------------------
+\newif\ifodfooter \odfootertrue
+\newif\ifodnavy
+\providecommand\logocredits{}
+\newcommand\twodigits[1]{\ifnum#1<10 0\fi\number#1}
+\setbeamertemplate{background}{%
+  \begin{tikzpicture}
+    \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
+    \fill[paper] (0,0) rectangle (\paperwidth,\paperheight);
+    \ifodnavy                                % summary slide: Constructor blue, footer marks in white
+      \fill[introblue] (0,0) rectangle (\paperwidth,\paperheight);
+      \fill[signal] (0,0) rectangle (0.22\paperwidth,4\px);
+      \fill[amber] (0.22\paperwidth,0) rectangle (0.30\paperwidth,4\px);
+      \node[anchor=west, inner sep=0] at (96\px,40\px)
+        {\odlogo{34\px}{white}{introblue}\hspace{10\px}{\brandfont\pxfont{22}{1}\color{white}odosseus}};
+      \node[inner sep=0] at (857\px,40\px) {\intermedium\pxfont{15}{1}\color{footertext}\footertext};
+      \node[anchor=east, inner sep=0] at (\paperwidth-96\px,40\px)
+        {\intermedium\pxfont{15}{1}\color{footertext}\twodigits{\value{framenumber}}};
+    \else\ifodfooter
+      \fill[ink] (0,0) rectangle (\paperwidth,64\px);
+      \fill[signal] (0,60\px) rectangle (0.22\paperwidth,64\px);       % top stripe: 0-22 % orange
+      \fill[amber] (0.22\paperwidth,60\px) rectangle (0.30\paperwidth,64\px);  % 22-30 % amber
+      \node[anchor=west, inner sep=0] at (96\px,32\px)
+        {\odlogo{34\px}{white}{ink}\hspace{10\px}{\brandfont\pxfont{22}{1}\color{white}odosseus}};
+      \node[inner sep=0] at (857\px,32\px) {\intermedium\pxfont{15}{1}\color{footertext}\footertext};
+      \node[anchor=east, inner sep=0] at (\paperwidth-96\px,32\px)
+        {\intermedium\pxfont{15}{1}\color{footertext}\twodigits{\value{framenumber}}};
+    \else                                    % logo slide: the credit line at the bottom edge
+      \ifdefempty{\logocredits}{}{\node[anchor=south, inner sep=0, text width=1408\px, align=center, text=muted,
+        font=\intermedium\pxfont{14}{1.4}] at (0.5\paperwidth,36\px) {\logocredits};}
+    \fi\fi
+  \end{tikzpicture}}
+
+% ---------------------------------------------------------------------
+%  Slide frame: \begin{odslide} ... \end{odslide}  (content starts 64 px from the top)
+% ---------------------------------------------------------------------
+\newenvironment{odslide}{\begin{frame}[t]\vspace*{\dimexpr64\px-\baselineskip\relax}}{\end{frame}}
+
+% ---------------------------------------------------------------------
+%  Logo slide: \logoslide   (static; the HTML's black-to-white fade is dropped)
+% ---------------------------------------------------------------------
+\newcommand\logocaption{}   % caption line, centred on the logo slide; set it in odosseus.tex with \renewcommand
+\newcommand\logoside{}       % image to the right of the logo, e.g. images/<file>.png (empty: logo alone, centred)
+\renewcommand\logocredits{}    % small credit / disclosure line at the bottom of the logo slide (empty: none)
+\newfontfamily\brandmedium{outfit-500}[Path=./fonts/, Extension=.ttf]
+\newcommand\logogroup[2]{%    #1 ship width, #2 wordmark size (px): the ship and the wordmark
+  \odlogo{#1}{ink}{white}\par\vspace{18\px}
+  {\brandfont\pxfont{#2}{1}\color{ink}\addfontfeature{LetterSpace=1}odosseus}\par}
+\newcommand\odcaption{{\brandmedium\pxfont{38}{1}\color{muted}\addfontfeature{LetterSpace=3}\logocaption}\par}
+\newcommand\odlogoalone{\logogroup{560\px}{132}\vspace{22\px}\odcaption}
+\newcommand\odlogowithside{%
+  \begin{minipage}[c]{520\px}\centering\logogroup{400\px}{120}\end{minipage}%
+  \hspace{48\px}%
+  \begin{minipage}[c]{800\px}\centering
+    \IfFileExists{\logoside}{\includegraphics[width=800\px]{\logoside}}%
+      {{\intermedium\pxfont{15}{1.3}\color{muted}(image \detokenize\expandafter{\logoside} not found)}}%
+  \end{minipage}\par\vspace{44\px}%
+  \odcaption}                                 % the caption: one line, centred on the slide below logo and image
+% the choices are made before the frame starts (a frame reads its body first; conditionals inside break that)
+\newcommand\logoslide{%
+  {\odfooterfalse
+   \ifdefempty{\logoside}{\let\odlogobody\odlogoalone}{\let\odlogobody\odlogowithside}%
+   \begin{frame}[plain]
+     \centering\vfill
+     \odlogobody\par
+     \vfill
+   \end{frame}}}
+
+% ---------------------------------------------------------------------
+%  Header pieces
+% ---------------------------------------------------------------------
+% \kicker{02}{Our solution}
+\newcommand\odkickertext{muted}
+\newcommand\kicker[2]{%
+  \noindent{\color{signal}\rule[0.3ex]{28\px}{3\px}}\hspace{12\px}%
+  {\intersemibold\pxfont{15}{1}\tracking{16}\color{signal}\textbf{#1}\hspace{12\px}\color{\odkickertext}\MakeUppercase{#2}}%
+  \par\nointerlineskip\vspace{20\px}}
+% \highlight{text}: the orange part of a title (HTML h2 em)
+\newcommand\highlight[1]{{\color{signal}#1}}
+% \slidetitle{Car state predicts, \highlight{the map corrects}}
+\newcommand\slidetitle[1]{%
+  \noindent\parbox[t]{1300\px}{\raggedright\headfont\pxfont{58}{1.05}\addfontfeature{LetterSpace=-2}\color{ink}#1}\par}
+% \slidesub{One sentence under the title}
+\newcommand\slidesub[1]{%
+  \nointerlineskip\vspace{14\px}\noindent\parbox[t]{\contentwidth}{\raggedright\intermedium\pxfont{22}{1.4}\color{ink2!85!white}#1}\par}
+% \ra: a right arrow (the downloaded Inter subset has no arrow glyph)
+\newcommand\ra{\ensuremath{\rightarrow}}
+% \ph{text}: amber-highlighted placeholder (HTML .ph)
+\newcommand\ph[1]{\tikz[baseline=(p.base)]{\node[inner xsep=6\px, inner ysep=0.5pt, fill=amber, fill opacity=0.22, text opacity=1, rounded corners=3\px] (p) {#1};
+  \draw[amber, dashed, line width=2\px] (p.south west) -- (p.south east);}}
+
+% ---------------------------------------------------------------------
+%  Pipeline of steps (slide 2)
+%    \begin{pipeline}[<height px>]
+%      \pipestep[<width factor>]{plain|hl|new}{Offline}{3D map}{Text}  \pipearrow  ...
+%    \end{pipeline}
+%  Widths: \pipefr px per factor (default: 4 steps 1, 1, 1.2, 1.2 with 3 arrows fill 1408 px).
+% ---------------------------------------------------------------------
+\newcommand\pipefr{292.7}
+\newcommand\pipeh{210}
+\newcommand\pipex{0}
+\newenvironment{pipeline}[1][210]{%
+  \vspace{40\px}\noindent\renewcommand\pipeh{#1}\renewcommand\pipex{0}%
+  \begin{tikzpicture}[x=\px, y=\px]}{\end{tikzpicture}\par}
+\newcommand\pipearrow{%
+  \draw[signal, line width=3\px] (\pipex+7,-\pipeh/2) -- ++(24,0) (\pipex+24,-\pipeh/2+7) -- (\pipex+32,-\pipeh/2) -- (\pipex+24,-\pipeh/2-7);
+  \xdef\pipex{\fpeval{\pipex+40}}}
+\newcommand\pipestep[5][1]{%
+  \edef\w{\fpeval{#1*\pipefr}}%
+  \ifstrequal{#2}{hl}{\def\bg{ink}\def\odtop{signal}\def\nc{hlnum}\def\hc{amber}\def\pc{hltext}}{%
+  \ifstrequal{#2}{new}{\def\bg{newbg}\def\odtop{sea}\def\nc{muted}\def\hc{ink}\def\pc{bodytext}}{%
+  \def\bg{mist}\def\odtop{line}\def\nc{muted}\def\hc{ink}\def\pc{bodytext}}}%
+  \node[anchor=north west, inner sep=0, outer sep=0, fill=\bg, rounded corners=14\px,
+        minimum width=\w\px, minimum height=\pipeh\px,
+        path picture={\fill[\odtop] (path picture bounding box.north west) rectangle ([yshift=-5\px]path picture bounding box.north east);}]
+    at (\pipex,0) {\begin{minipage}[t][\fpeval{\pipeh-50}\px][t]{\fpeval{\w-48}\px}\vspace{0pt}%
+        {\interbold\pxfont{13}{1}\tracking{14}\color{\nc}\MakeUppercase{#3}}\par\vspace{10\px}%
+        {\raggedright\headfont\pxfont{25}{1.15}\color{\hc}#4\par}\vspace{10\px}%
+        {\raggedright\pxfont{17}{1.45}\color{\pc}#5\par}\end{minipage}};
+  \xdef\pipex{\fpeval{\pipex+\w}}}
+
+% ---------------------------------------------------------------------
+%  Stat row (slide 2):  \begin{stats} \stat{0.12}{–0.13 m}{label} ... \end{stats}
+%  Left-border colors cycle: signal, amber, sea, ink2.
+% ---------------------------------------------------------------------
+\newcounter{odstat}
+\newenvironment{stats}{\par\vspace{34\px}\setcounter{odstat}{0}\noindent\ignorespaces}{\unskip\par}
+\newcommand\stat[3]{%
+  \unskip\stepcounter{odstat}%
+  \ifcase\value{odstat}\or\def\bc{signal}\or\def\bc{amber}\or\def\bc{sea}\else\def\bc{ink2}\fi
+  \ifnum\value{odstat}>1\hspace{20\px}\fi%
+  \begin{tikzpicture}[baseline=(s.north)]
+    \node[anchor=north west, inner xsep=0, inner ysep=4\px, outer sep=0] (s) {\hspace{20\px}\begin{minipage}[t]{316\px}\vspace{0pt}%
+      {\headfont\pxfont{46}{1}\addfontfeature{LetterSpace=-2}\color{ink}#1{\pxfont{22}{1}\color{muted}\hspace{4\px}#2}}\par\vspace{8\px}%
+      {\raggedright\intermedium\pxfont{16}{1.35}\color{muted}#3\par}\end{minipage}};
+    \fill[\bc] (s.north west) rectangle ([xshift=4\px]s.south west);
+  \end{tikzpicture}\ignorespaces}
+% \slidenote{\textbf{Trade-off:} text}  (bold part in ink)
+\newcommand\slidenote[1]{\vspace{22\px}\noindent\parbox[t]{\contentwidth}{\raggedright\intermedium\pxfont{15}{1.4}\color{muted}%
+  \renewcommand\textbf[1]{{\interbold\color{ink}##1}}#1}\par}
+
+% ---------------------------------------------------------------------
+%  Cards (slide 3):  \begin{cards}[<height px>] \card{no|ok}{Title}{\point{...}\point{...}} \card{...} \end{cards}
+% ---------------------------------------------------------------------
+\newcommand\cardh{330}
+\newcounter{odcard}
+\newenvironment{cards}[1][330]{\par\vspace{34\px}\noindent\renewcommand\cardh{#1}\setcounter{odcard}{0}\ignorespaces}{\unskip\par}
+\newcommand\point[1]{\item #1}
+\newcommand\badge[1]{% ✕ (no) or ✓ (ok) drawn in TikZ
+  \ifstrequal{#1}{ok}%
+    {\tikz[baseline=-0.35em]{\fill[sea] (0,0) circle (14\px); \draw[ink, sharp corners, line width=2.6\px, line cap=round, line join=round] (-6\px,0.5\px) -- (-1.5\px,-4.5\px) -- (6.5\px,5\px);}}%
+    {\tikz[baseline=-0.35em]{\fill[signal] (0,0) circle (14\px); \draw[white, sharp corners, line width=2.6\px, line cap=round] (-5\px,-5\px) -- (5\px,5\px) (-5\px,5\px) -- (5\px,-5\px);}}}
+\newcommand\card[3]{%
+  \unskip\stepcounter{odcard}\ifnum\value{odcard}>1\hspace{28\px}\fi%
+  \ifstrequal{#1}{ok}{\def\odtop{sea}}{\def\odtop{signal}}%
+  \begin{tikzpicture}[baseline=(c.north)]
+    \node[anchor=north west, inner sep=0, outer sep=0, fill=mist, rounded corners=14\px, minimum width=689\px, minimum height=\cardh\px,
+          path picture={\fill[\odtop] (path picture bounding box.north west) rectangle ([yshift=-5\px]path picture bounding box.north east);}]
+      (c) {\begin{minipage}[t][\fpeval{\cardh-52}\px][t]{626\px}\vspace{0pt}%
+        {\headfont\pxfont{24}{1}\color{ink}\badge{#1}\hspace{12\px}#2}\par\vspace{18\px}%
+        \begin{list}{\tikz[baseline=-1.5\px]\fill[ink2, rounded corners=1.5\px] (0,0) rectangle (8\px,8\px);}%  bullet: 8 px square, centred on the x-height
+          {\setlength\leftmargin{20\px}\setlength\labelsep{12\px}\setlength\labelwidth{8\px}\setlength\itemsep{14\px}%
+           \setlength\parsep{0pt}\setlength\topsep{0pt}}
+          \pxfont{18}{1.4}\color{cardtext}\renewcommand\textbf[1]{{\interbold\color{ink}##1}}\raggedright
+          #3
+        \end{list}\end{minipage}};
+  \end{tikzpicture}\ignorespaces}
+% \insight{Key insight}{text, \textbf{amber part}}   (tag pill + one paragraph on a navy bar)
+\newcommand\insight[2]{%
+  \par\vspace{24\px}\noindent
+  \begin{tikzpicture}
+    \node[anchor=west, fill=amber, rounded corners=6\px, inner xsep=12\px, inner ysep=8\px] (tag) at (30\px,0)
+      {\interbold\pxfont{13}{1}\tracking{16}\color{ink}\MakeUppercase{#1}};
+    \node[anchor=west, inner sep=0, text width=\fpeval{1408-60-18-140}\px, align=left, text=insighttext,
+          font=\intermedium\pxfont{19}{1.4}] (txt) at ([xshift=18\px]tag.east)
+      {\renewcommand\textbf[1]{{\interbold\color{amber}##1}}#2};
+    \begin{scope}[on background layer]
+      \fill[ink, rounded corners=12\px] ($(0,0 |- txt.north)+(0,20\px)$) rectangle ($(1408\px,0 |- txt.south)+(0,-20\px)$);
+    \end{scope}
+  \end{tikzpicture}\par}
+
+% ---------------------------------------------------------------------
+%  Failure cases (slide 4):  \begin{fails} \failcase{image}{cam}{Title}{Text}{error tag}{fix} x3 \end{fails}
+%  image: a file in ./images (1506 x 728 camera frames fit exactly), or {} for the placeholder.
+%  cam: the camera label, written in capitals (e.g. CL), or {} for none.
+% ---------------------------------------------------------------------
+\newcounter{odfail}
+\newenvironment{fails}{\par\vspace{38\px}\noindent\setcounter{odfail}{0}\ignorespaces}{\unskip\par}
+\newcommand\camicon{\tikz{\draw[muted, solid, line width=2.4\px, rounded corners=4\px] (0,0) rectangle (27\px,19.5\px);
+  \draw[muted, solid, sharp corners, line width=2.4\px] (13.5\px,9.75\px) circle (5.25\px);
+  \draw[muted, solid, sharp corners, line width=2.4\px] (7.5\px,19.5\px) -- (9.75\px,22.5\px) -- (17.25\px,22.5\px) -- (19.5\px,19.5\px);}}
+\newcommand\failcase[6]{%
+  \unskip\stepcounter{odfail}\ifnum\value{odfail}>1\hspace{28\px}\fi%
+  \begin{minipage}[t]{450\px}\vspace{0pt}%
+    \begin{tikzpicture}
+      \ifstrempty{#1}%
+        {\node[anchor=north west, inner sep=0, outer sep=0, fill=mist, draw=line, dashed, line width=2\px, rounded corners=12\px,
+               minimum width=448\px, minimum height=218\px, align=center] (shot)
+           {\camicon\\[10\px]{\intermedium\pxfont{15}{1.3}\color{muted}Image goes here}};}%
+        {\begin{scope}
+           \clip[rounded corners=12\px] (0,0) rectangle (450\px,-218\px);
+           \node[anchor=north west, inner sep=0] (shot) at (0,0) {\includegraphics[width=450\px, height=218\px]{#1}};
+         \end{scope}}%
+      \ifstrempty{#2}{}{\node[anchor=north west, fill=ink!85, text=white, rounded corners=5\px, inner xsep=10\px, inner ysep=7\px]
+          at (12\px,-12\px) {\interbold\pxfont{12}{1}\tracking{12}#2};}
+    \end{tikzpicture}\par\vspace{18\px}%
+    {\raggedright\headfont\pxfont{23}{1.2}\color{ink}#3\par}\vspace{8\px}%
+    {\raggedright\pxfont{17}{1.45}\color{bodytext}\renewcommand\textbf[1]{{\interbold\color{ink}##1}}#4\par}\vspace{12\px}%
+    \tikz\node[fill=signal!10, rounded corners=6\px, inner xsep=12\px, inner ysep=8\px] {\interbold\pxfont{15}{1}\color{signal}#5};\par\vspace{10\px}%
+    {\raggedright\intermedium\pxfont{15}{1.4}\color{muted}\renewcommand\textbf[1]{{\interbold\color{fixtext}##1}}#6\par}%
+  \end{minipage}\ignorespaces}
+
+% ---------------------------------------------------------------------
+%  Video cards (visualization slide): a clickable still with a play button
+%    \begin{videos} \videocard{poster}{link}{LABEL}{caption} \videocard{...} \end{videos}
+%  link: run:videos/<file>.mp4 opens the local file next to the PDF (Acrobat, Skim; Preview ignores it),
+%        or https://... once the video is uploaded (works in every viewer). Posters are 16:9.
+% ---------------------------------------------------------------------
+\newcounter{odvideo}
+\newenvironment{videos}{\par\vspace{38\px}\noindent\setcounter{odvideo}{0}\ignorespaces}{\unskip\par}
+\newcommand\videocard[4]{%
+  \unskip\stepcounter{odvideo}\ifnum\value{odvideo}>1\hspace{28\px}\fi%
+  \begin{minipage}[t]{689\px}\vspace{0pt}%
+    \href{#2}{\begin{tikzpicture}
+      \begin{scope}
+        \clip[rounded corners=12\px] (0,0) rectangle (689\px,-388\px);
+        \node[anchor=north west, inner sep=0] at (0,0) {\includegraphics[width=689\px, height=388\px]{#1}};
+        \fill[ink, fill opacity=0.20] (0,0) rectangle (689\px,-388\px);
+      \end{scope}
+      \fill[white, fill opacity=0.94] (344.5\px,-194\px) circle (48\px);
+      \fill[signal, sharp corners] (331.5\px,-168\px) -- (331.5\px,-220\px) -- (376.5\px,-194\px) -- cycle;
+      \node[anchor=north west, fill=ink!88, text=white, rounded corners=5\px, inner xsep=10\px, inner ysep=7\px]
+        at (14\px,-14\px) {\interbold\pxfont{12}{1}\tracking{12}#3};
+    \end{tikzpicture}}\par\vspace{14\px}%
+    {\raggedright\pxfont{17}{1.45}\color{bodytext}\renewcommand\textbf[1]{{\interbold\color{ink}##1}}#4\par}%
+  \end{minipage}\ignorespaces}
+
+% ---------------------------------------------------------------------
+%  Summary slide on Constructor blue:
+%    \summaryslide{06}{Thank you}{\sumword{Predict}{description} \sumword{Localize}{...} \sumword{Tune}{...}}
+%  Bars beside the words cycle orange, amber, sea; leave a description empty for the word alone.
+% ---------------------------------------------------------------------
+\newcounter{odsum}
+\newcommand\sumword[2]{%
+  \stepcounter{odsum}%
+  \ifcase\value{odsum}\or\def\bc{signal}\or\def\bc{amber}\else\def\bc{sea}\fi
+  \noindent\begin{minipage}[c]{860\px}%
+    {\color{\bc}\rule[-0.05em]{8\px}{118\px}}\hspace{28\px}%
+    {\headfont\pxfont{150}{1.0}\addfontfeature{LetterSpace=-2}\color{white}#1}%
+  \end{minipage}%
+  \begin{minipage}[c]{548\px}\raggedright{\intermedium\pxfont{26}{1.35}\color{hltext}#2}\end{minipage}\par\vspace{18\px}}
+\newcommand\summaryslide[3]{%
+  {\odnavytrue\renewcommand\odkickertext{hltext}\setcounter{odsum}{0}%
+   \begin{frame}[t]
+     \vspace*{\dimexpr64\px-\baselineskip\relax}
+     \kicker{#1}{#2}\vspace{36\px}
+     #3
+   \end{frame}}}
+
+% ---------------------------------------------------------------------
+%  One big video tile (visualization slide): clickable 16:9 still left, text right
+%    \bigvideo{poster}{link}{LABEL}{title}{text}    link: run:videos/<file>.mp4 or https://...
+% ---------------------------------------------------------------------
+\newcommand\bigvideo[5]{%
+  \par\vspace{30\px}\noindent
+  \begin{minipage}[t]{960\px}\vspace{0pt}%
+    \href{#2}{\begin{tikzpicture}
+      \begin{scope}
+        \clip[rounded corners=14\px] (0,0) rectangle (960\px,-540\px);
+        \node[anchor=north west, inner sep=0] at (0,0) {\includegraphics[width=960\px, height=540\px]{#1}};
+        \fill[ink, fill opacity=0.18] (0,0) rectangle (960\px,-540\px);
+      \end{scope}
+      \fill[white, fill opacity=0.94] (480\px,-270\px) circle (64\px);
+      \fill[signal, sharp corners] (462\px,-235\px) -- (462\px,-305\px) -- (522\px,-270\px) -- cycle;
+      \node[anchor=north west, fill=ink!88, text=white, rounded corners=5\px, inner xsep=12\px, inner ysep=8\px]
+        at (16\px,-16\px) {\interbold\pxfont{13}{1}\tracking{12}#3};
+    \end{tikzpicture}}%
+  \end{minipage}\hspace{36\px}%
+  \begin{minipage}[t]{410\px}\vspace{0pt}\raggedright
+    {\headfont\pxfont{30}{1.15}\color{ink}#4\par}\vspace{16\px}%
+    {\pxfont{19}{1.45}\color{bodytext}\renewcommand\textbf[1]{{\interbold\color{ink}##1}}#5\par}%
+  \end{minipage}\par}
+
+\endinput

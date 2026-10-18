@@ -282,6 +282,18 @@ calibration, rotation errors largely cancel. Kept the bag extrinsics; the refine
    -0.05 m), roll within 3° of the typical -1.25°, |pitch| < 4°.
 6. Cameras `cr, cl, rr, fr, rl`, processed in parallel threads.
 
+**The acceptance chain of a camera fix.** A fix reaches the filter only if it passes, in order:
+1. at least 20 matches left after the guided filter (`reloc.query.min_matches`), otherwise PnP is not tried;
+2. PnP RANSAC at 4 px, leaving at least 15 inliers (`checks.min_inliers`) with an inlier ratio of at least 0.2
+   (`checks.min_inlier_ratio`);
+3. the height, roll and pitch checks of step 5;
+4. the filter's χ² gate at 99.9 % (NIS 16.27, D-014).
+
+The 15-inlier and 0.2-ratio limits come from the evidence below. The 20-match minimum was set by hand and has
+not been measured or tuned (D-015 tuned only the noise values). On the daytime sample the median camera has
+16 matches after the guided filter, so this minimum is binding there; lowering it is an open experiment, with
+the D-020 risk of accepting wrong fixes.
+
 **Evidence.**
 - Without the guided filter only 2–10 % of the 230–500 tentative matches per image were correct and
   RANSAC rarely found them: fix rate 1–13 % per camera (diagnostic map, GT prior). With it: 26–76 %, unchanged when the
