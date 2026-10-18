@@ -1,0 +1,5 @@
+# Smoke test only (smoke_matching.py), on top of the odosseus env (localization/environment.yml):
+#   conda create -n odosseus-sp --clone odosseus && conda run -n odosseus-sp pip install -r visualization/requirements-smoke.txt
+torch>=2.5
+kornia>=0.8
+lightglue @ git+https://github.com/cvg/LightGlue.git
